@@ -25,8 +25,8 @@ To contribute or utilize the OAs platform, please refer to our documentation for
 We value community contributions. Whether you're fixing a bug, improving the documentation, or proposing a new feature, we invite you to join us in shaping the future of payment solutions.
 
 ### License
-[License information, typically MIT, GPL, Apache, etc.]
+MIT License
 
 ### Contact Us
-For inquiries related to partnership, usage, or contributions, please reach out to us via [Contact Information].
+For inquiries related to partnership, usage, or contributions, please reach out to us via admin@mozartpay.com.
 
