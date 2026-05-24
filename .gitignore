@@ -1,0 +1,79 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Go workspace
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# Build directories
+dist/
+build/
+target/
+docs/
+
+# Rust
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+.pnpm-debug.log*
+
+# Environment variables  ------ put env back!!!!
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+scripts/
+
+# Python cache (for any Python scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Project specific
+mozartpay-darwin-arm64
+mozartpay-mvp-v2.tar.gz
+notes.md
