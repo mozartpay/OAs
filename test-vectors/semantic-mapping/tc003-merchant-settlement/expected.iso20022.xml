@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr>
+      <MsgId>SETTLE202603011500</MsgId>
+      <CreDtTm>2026-03-01T15:00:00Z</CreDtTm>
+      <NbOfTxs>1</NbOfTxs>
+      <InitgPty>
+        <Nm>MozartPay</Nm>
+      </InitgPty>
+    </GrpHdr>
+    <CdtTrfTxInf>
+      <PmtId>
+        <EndToEndId>BATCH-SETTLE-001</EndToEndId>
+        <TxId>DEMOC3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4</TxId>
+      </PmtId>
+      <Amt>
+        <InstdAmt Ccy="USD">1250.75</InstdAmt>
+      </Amt>
+      <ChrgBr>SHAR</ChrgBr>
+      <CdtrAgt>
+        <FinInstnId>
+          <ClrSysMmbId>
+            <MmbId>stellar-testnet</MmbId>
+          </ClrSysMmbId>
+        </FinInstnId>
+      </CdtrAgt>
+      <Cdtr>
+        <Nm>Settlement Account</Nm>
+      </Cdtr>
+      <CdtrAcct>
+        <Id>
+          <Othr>
+            <Id>GDEMO_SETTLE00000000000000000000000000000000000000000000000001</Id>
+          </Othr>
+        </Id>
+      </CdtrAcct>
+      <RmtInf>
+        <Ustrd>Merchant Batch Settlement</Ustrd>
+      </RmtInf>
+      <SupplementaryData>
+        <Envlp>
+          <DltPaymentData xmlns="urn:mozartpay:dlt:payment:1.0">
+            <DltAsset>
+              <AssetType>Stablecoin</AssetType>
+              <AssetId>USDC</AssetId>
+              <Issuer>Circle</Issuer>
+              <Ledger>Stellar</Ledger>
+              <LedgerId>public:stellar:testnet</LedgerId>
+            </DltAsset>
+            <BatchData>
+              <BatchId>BATCH-SETTLE-001</BatchId>
+              <TransactionCount>47</TransactionCount>
+              <TotalAmount>1250.75</TotalAmount>
+              <Currency>USD</Currency>
+            </BatchData>
+            <SettlementEvidence>
+              <BlockHash>DEMOC3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4</BlockHash>
+              <ConfirmationCount>15</ConfirmationCount>
+              <FinalityStatus>Final</FinalityStatus>
+              <LedgerSeq>50123458</LedgerSeq>
+            </SettlementEvidence>
+          </DltPaymentData>
+        </Envlp>
+      </SupplementaryData>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>

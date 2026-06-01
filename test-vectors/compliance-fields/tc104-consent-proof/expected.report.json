@@ -1,0 +1,70 @@
+{
+  "reportId": "RPT-20260301-004",
+  "generatedAt": "2026-03-01T15:30:00Z",
+  "payment": {
+    "id": "consent-proof-004",
+    "from": "GDEMO_USER0000000000000000000000000000000000000000000000001",
+    "to": "GDEMO_MERCHANT000000000000000000000000000000000000000000000001",
+    "amount": "150.0000000",
+    "asset": "USDC",
+    "rail": "direct",
+    "status": "confirmed",
+    "network": "stellar-testnet",
+    "memo": "CONSENT-VERIFIED",
+    "fee": "0.00002 XLM",
+    "txHash": "DEMOG7H8I9J0K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5Z6A7B8C9D0E1F2",
+    "ledgerSeq": 50123462,
+    "createdAt": "2026-03-01T15:25:00Z",
+    "confirmedAt": "2026-03-01T15:25:05Z"
+  },
+  "did": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "vcAttached": true,
+  "vc": {
+    "@context": [
+      "https://www.w3.org/2018/credentials/v1",
+      "https://w3id.org/ebsi/2024/credentials/v1"
+    ],
+    "id": "urn:uuid:9999-0000-1111-2222",
+    "type": ["VerifiableCredential", "ConsentCredential"],
+    "issuer": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    "issuanceDate": "2026-03-01T09:00:00Z",
+    "expirationDate": "2027-03-01T09:00:00Z",
+    "credentialSubject": {
+      "id": "did:key:z1v35qly3xq5xkb5xw5xkg7xzh2z3x5xk5xw5xkg7x",
+      "consentGiven": true,
+      "consentType": "data-processing",
+      "consent_purpose": "Processing of payment transaction data for regulatory reporting",
+      "revocableAt": "2027-03-01T09:00:00Z"
+    },
+    "proof": {
+      "type": "EcdsaSecp256k1Signature2019",
+      "created": "2026-03-01T09:00:00Z",
+      "proofPurpose": "assertionMethod",
+      "verificationMethod": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#key-1",
+      "jws": "eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ..."
+    }
+  },
+  "kycVerification": {
+    "status": "verified",
+    "verifier": "OG Technologies EU",
+    "vcHash": "0xjkl012...",
+    "kycLevel": "standard",
+    "verifiedAt": "2026-03-01T09:05:00Z"
+  },
+  "amlAssessment": {
+    "riskScore": 0.012,
+    "thresholdPassed": true,
+    "ruleIds": ["AML-RULE-01"],
+    "assessmentDate": "2026-03-01T15:30:00Z"
+  },
+  "consentProof": {
+    "consentGiven": true,
+    "consentTimestamp": "2026-03-01T09:00:00Z",
+    "consentType": "data-processing",
+    "consentVerified": true,
+    "verifiedAt": "2026-03-01T15:30:00Z",
+    "revocable": true,
+    "revocableAt": "2027-03-01T09:00:00Z"
+  },
+  "auditHash": "0xjkl012mno345pqr"
+}

@@ -1,0 +1,21 @@
+{
+  "DltAsset": {
+    "AssetType": "Stablecoin",
+    "AssetId": "USDC",
+    "Issuer": "Circle",
+    "Ledger": "Stellar",
+    "LedgerId": "public:stellar:testnet"
+  },
+  "BatchData": {
+    "BatchId": "BATCH-SETTLE-001",
+    "TransactionCount": 47,
+    "TotalAmount": "1250.75",
+    "Currency": "USD"
+  },
+  "SettlementEvidence": {
+    "BlockHash": "DEMOC3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4",
+    "ConfirmationCount": 15,
+    "FinalityStatus": "Final",
+    "LedgerSeq": 50123458
+  }
+}

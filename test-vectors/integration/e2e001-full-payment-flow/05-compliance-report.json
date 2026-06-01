@@ -1,0 +1,80 @@
+{
+  "reportId": "E2E-RPT-20260301-001",
+  "generatedAt": "2026-03-01T09:05:00Z",
+  "payment": {
+    "id": "e2e001-payment-001",
+    "from": "GDEMO_EVA0000000000000000000000000000000000000000000000001",
+    "to": "GDEMO_MERCHANT000000000000000000000000000000000000000000000001",
+    "amount": "500.0000000",
+    "asset": "USDC",
+    "rail": "direct",
+    "status": "confirmed",
+    "network": "stellar-testnet",
+    "memo": "E2E-TEST-001",
+    "fee": "0.00003 XLM",
+    "txHash": "E2E001A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5",
+    "ledgerSeq": 50123463,
+    "createdAt": "2026-03-01T09:00:00Z",
+    "confirmedAt": "2026-03-01T09:00:05Z"
+  },
+  "did": "did:ebsi:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "vcAttached": true,
+  "vc": {
+    "@context": [
+      "https://www.w3.org/2018/credentials/v1",
+      "https://w3id.org/ebsi/2024/credentials/v1"
+    ],
+    "id": "urn:uuid:e2e001-vc-12345",
+    "type": ["VerifiableCredential", "NationalIdentityCredential"],
+    "issuer": "did:ebsi:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    "issuanceDate": "2026-03-01T08:30:00Z",
+    "expirationDate": "2027-03-01T08:30:00Z",
+    "credentialSubject": {
+      "id": "did:ebsi:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+      "name": "Eva Kowalski",
+      "country": "PL",
+      "nationalId": {
+        "type": "passport",
+        "identifier": "P123456789",
+        "issuingAuthority": "Polish Ministry of Interior"
+      },
+      "kycLevel": "enhanced",
+      "amlExemption": false
+    },
+    "proof": {
+      "type": "EcdsaSecp256k1Signature2019",
+      "created": "2026-03-01T08:30:00Z",
+      "proofPurpose": "assertionMethod",
+      "verificationMethod": "did:ebsi:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#key-1",
+      "jws": "eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ..."
+    }
+  },
+  "kycVerification": {
+    "status": "verified",
+    "verifier": "OG Technologies EU",
+    "vcHash": "0xe2e001vc12345",
+    "kycLevel": "enhanced",
+    "verifiedAt": "2026-03-01T08:35:00Z"
+  },
+  "amlAssessment": {
+    "riskScore": 0.020,
+    "thresholdPassed": true,
+    "ruleIds": ["AML-RULE-01", "AML-RULE-05"],
+    "assessmentDate": "2026-03-01T09:05:00Z"
+  },
+  "iso20022": {
+    "msgId": "E2E202603010900",
+    "creDtTm": "2026-03-01T09:00:00Z",
+    "initgPty": "MozartPay",
+    "pmtInf": {
+      "pmtInfId": "E2E-TEST-001",
+      "pmtMtd": "TRF",
+      "instdAmt": "500.00",
+      "ccy": "USD",
+      "cdtrNm": "Merchant",
+      "dbtrNm": "Eva Kowalski",
+      "endToEndId": "E2E-TEST-001"
+    }
+  },
+  "auditHash": "0xe2e001abc123def456"
+}

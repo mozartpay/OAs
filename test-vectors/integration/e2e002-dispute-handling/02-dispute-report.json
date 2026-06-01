@@ -1,0 +1,60 @@
+{
+  "reportId": "E2E-RPT-20260301-002",
+  "generatedAt": "2026-03-01T14:05:00Z",
+  "payment": {
+    "id": "e2e002-payment-002",
+    "from": "GDEMO_BUYER0000000000000000000000000000000000000000000000001",
+    "to": "GDEMO_SELLER0000000000000000000000000000000000000000000000001",
+    "amount": "2000.0000000",
+    "asset": "USDC",
+    "rail": "direct",
+    "status": "confirmed",
+    "network": "stellar-testnet",
+    "memo": "DISPUTE-TEST",
+    "fee": "0.00005 XLM",
+    "txHash": "E2E002B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6",
+    "ledgerSeq": 50123464,
+    "createdAt": "2026-03-01T14:00:00Z",
+    "confirmedAt": "2026-03-01T14:00:06Z"
+  },
+  "did": "did:ebsi:9876543210ZYXWVUTSRQPONMLKJIHGFEDCBA9876543210",
+  "vcAttached": true,
+  "vc": {
+    "@context": [
+      "https://www.w3.org/2018/credentials/v1",
+      "https://w3id.org/ebsi/2024/credentials/v1"
+    ],
+    "id": "urn:uuid:e2e002-vc-67890",
+    "type": ["VerifiableCredential", "KYCCredential"],
+    "issuer": "did:ebsi:9876543210ZYXWVUTSRQPONMLKJIHGFEDCBA9876543210",
+    "issuanceDate": "2026-03-01T13:00:00Z",
+    "expirationDate": "2027-03-01T13:00:00Z",
+    "credentialSubject": {
+      "id": "did:ebsi:9876543210ZYXWVUTSRQPONMLKJIHGFEDCBA9876543210",
+      "name": "Buyer Name",
+      "country": "DE",
+      "kycLevel": "enhanced"
+    },
+    "proof": {
+      "type": "EcdsaSecp256k1Signature2019",
+      "created": "2026-03-01T13:00:00Z",
+      "proofPurpose": "assertionMethod",
+      "verificationMethod": "did:ebsi:9876543210ZYXWVUTSRQPONMLKJIHGFEDCBA9876543210#key-1",
+      "jws": "eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ..."
+    }
+  },
+  "kycVerification": {
+    "status": "verified",
+    "verifier": "OG Technologies EU",
+    "vcHash": "0xe2e002vc67890",
+    "kycLevel": "enhanced",
+    "verifiedAt": "2026-03-01T13:05:00Z"
+  },
+  "amlAssessment": {
+    "riskScore": 0.025,
+    "thresholdPassed": true,
+    "ruleIds": ["AML-RULE-01", "AML-RULE-02"],
+    "assessmentDate": "2026-03-01T14:05:00Z"
+  },
+  "auditHash": "0xe2e002def456ghi789"
+}

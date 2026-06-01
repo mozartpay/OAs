@@ -1,0 +1,35 @@
+{
+  "testId": "tc102-aml-threshold",
+  "name": "AML Threshold Check",
+  "description": "Validates AML risk assessment and threshold compliance for transaction monitoring",
+  "scenario": "aml-threshold",
+  "category": "compliance-fields",
+  "mozartpayCommand": "mozartpay pay send --to GDEMO... --amount 5000 --asset USDC --rail direct --network stellar-testnet --output json && mozartpay report generate --vc-attach --output json",
+  "passCriteria": {
+    "fieldPresence": ["amlAssessment", "riskScore", "thresholdPassed"],
+    "fieldValues": {
+      "amlAssessment.thresholdPassed": true
+    },
+    "vcValidation": {
+      "requiredClaims": ["sub", "iss", "amlScore"],
+      "minTrustScore": 0.7
+    },
+    "complianceValidation": {
+      "kycStatus": "verified",
+      "amlThresholdPassed": true
+    },
+    "passThreshold": 0.8
+  },
+  "inputFiles": {
+    "vc": "input.vc.jwt"
+  },
+  "expectedFiles": {
+    "report": "expected.report.json"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["aml", "compliance", "risk-assessment"]
+  }
+}

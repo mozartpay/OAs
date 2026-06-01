@@ -1,0 +1,37 @@
+{
+  "testId": "tc101-kyc-verified",
+  "name": "KYC Verification Compliance",
+  "description": "Validates that a Verifiable Credential with KYC verification is properly attached to compliance reports",
+  "scenario": "kyc-verified",
+  "category": "compliance-fields",
+  "mozartpayCommand": "mozartpay did attest --method ebsi --vc national-id --name \"John Doe\" --country AT --output json && mozartpay report generate --vc-attach --output json",
+  "passCriteria": {
+    "fieldPresence": ["reportId", "kycVerification", "vcAttached"],
+    "fieldValues": {
+      "vcAttached": true,
+      "kycVerification.status": "verified"
+    },
+    "vcValidation": {
+      "requiredClaims": ["sub", "iss", "kycLevel"],
+      "minTrustScore": 0.8,
+      "requiredTypes": ["VerifiableCredential", "NationalIdentityCredential"]
+    },
+    "complianceValidation": {
+      "kycStatus": "verified",
+      "amlThresholdPassed": true
+    },
+    "passThreshold": 0.8
+  },
+  "inputFiles": {
+    "vc": "input.vc.jwt"
+  },
+  "expectedFiles": {
+    "report": "expected.report.json"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["kyc", "vc", "compliance", "ebsi"]
+  }
+}

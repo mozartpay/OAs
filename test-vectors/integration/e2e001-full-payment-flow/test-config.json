@@ -1,0 +1,37 @@
+{
+  "testId": "e2e001-full-payment-flow",
+  "name": "End-to-End Full Payment Flow",
+  "description": "Validates complete payment flow from DID creation through payment execution to ISO 20022 export",
+  "scenario": "full-payment-flow",
+  "category": "integration",
+  "mozartpayCommand": "mozartpay did create --method ebsi --output json && mozartpay did attest --method ebsi --vc national-id --name \"Eva Kowalski\" --country PL --output json && mozartpay pay send --to GDEMO... --amount 500 --asset USDC --rail direct --network stellar-testnet --output json && mozartpay report generate --vc-attach --output json && mozartpay report iso20022",
+  "passCriteria": {
+    "fieldPresence": ["did", "vc", "payment", "report", "iso20022"],
+    "fieldValues": {
+      "vcAttached": true,
+      "payment.status": "confirmed"
+    },
+    "vcValidation": {
+      "requiredClaims": ["sub", "iss", "kycLevel"],
+      "minTrustScore": 0.8
+    },
+    "iso20022Validation": {
+      "messageType": "pacs.008.001.08",
+      "requiredElements": ["GrpHdr", "CdtTrfTxInf", "SupplementaryData"]
+    },
+    "passThreshold": 0.8
+  },
+  "expectedFiles": {
+    "didCreation": "01-did-creation.json",
+    "vcIssuance": "02-vc-issuance.json",
+    "paymentInitiation": "03-payment-initiation.json",
+    "pacs008Output": "04-pacs008-output.xml",
+    "complianceReport": "05-compliance-report.json"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["e2e", "integration", "full-flow", "iso20022"]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "cbdc-pos-002",
+  "from": "GDEMO_CONSUMER00000000000000000000000000000000000000000000001",
+  "to": "GDEMO_MERCHANT000000000000000000000000000000000000000000000001",
+  "amount": "25.5000000",
+  "asset": "EURC",
+  "rail": "direct",
+  "status": "confirmed",
+  "network": "stellar-testnet",
+  "memo": "POS-12345",
+  "fee": "0.00002 XLM",
+  "txHash": "DEMOB2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3",
+  "ledgerSeq": 50123457,
+  "createdAt": "2026-03-01T11:30:00Z",
+  "confirmedAt": "2026-03-01T11:30:05Z"
+}

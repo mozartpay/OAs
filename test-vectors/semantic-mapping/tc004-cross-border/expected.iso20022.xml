@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr>
+      <MsgId>FX202603011645</MsgId>
+      <CreDtTm>2026-03-01T16:45:00Z</CreDtTm>
+      <NbOfTxs>1</NbOfTxs>
+      <InitgPty>
+        <Nm>MozartPay</Nm>
+      </InitgPty>
+    </GrpHdr>
+    <CdtTrfTxInf>
+      <PmtId>
+        <EndToEndId>FX-TRANSFER-001</EndToEndId>
+        <TxId>DEMOD4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5</TxId>
+      </PmtId>
+      <Amt>
+        <InstdAmt Ccy="USD">1000.00</InstdAmt>
+      </Amt>
+      <ChrgBr>SHAR</ChrgBr>
+      <CdtrAgt>
+        <FinInstnId>
+          <ClrSysMmbId>
+            <MmbId>stellar-testnet</MmbId>
+          </ClrSysMmbId>
+        </FinInstnId>
+      </CdtrAgt>
+      <Cdtr>
+        <Nm>Foreign Beneficiary</Nm>
+        <PstlAdr>
+          <Ctry>DE</Ctry>
+        </PstlAdr>
+      </Cdtr>
+      <CdtrAcct>
+        <Id>
+          <Othr>
+            <Id>GDEMO_RECEIVER0000000000000000000000000000000000000000000000001</Id>
+          </Othr>
+        </Id>
+      </CdtrAcct>
+      <RmtInf>
+        <Ustrd>Cross-Border FX Transfer via Tempo</Ustrd>
+      </RmtInf>
+      <SupplementaryData>
+        <Envlp>
+          <DltPaymentData xmlns="urn:mozartpay:dlt:payment:1.0">
+            <DltAsset>
+              <AssetType>Stablecoin</AssetType>
+              <AssetId>USDC</AssetId>
+              <Issuer>Circle</Issuer>
+              <Ledger>Stellar</Ledger>
+              <LedgerId>public:stellar:testnet</LedgerId>
+            </DltAsset>
+            <FXData>
+              <Provider>Tempo</Provider>
+              <SourceCurrency>USDC</SourceCurrency>
+              <TargetCurrency>EUR</TargetCurrency>
+              <FXRate>0.923456</FXRate>
+              <QuoteId>TEMPO-Q-20260301-001</QuoteId>
+              <SettlementTime>~3 minutes</SettlementTime>
+            </FXData>
+            <SettlementEvidence>
+              <BlockHash>DEMOD4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5</BlockHash>
+              <ConfirmationCount>20</ConfirmationCount>
+              <FinalityStatus>Final</FinalityStatus>
+              <LedgerSeq>50123459</LedgerSeq>
+            </SettlementEvidence>
+          </DltPaymentData>
+        </Envlp>
+      </SupplementaryData>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>

@@ -1,0 +1,34 @@
+{
+  "@context": [
+    "https://www.w3.org/2018/credentials/v1",
+    "https://w3id.org/ebsi/2024/credentials/v1"
+  ],
+  "id": "urn:uuid:ghij-klmn-opqr-stuv",
+  "type": ["VerifiableCredential", "KYCCredential"],
+  "issuer": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "issuanceDate": "2026-03-01T11:00:00Z",
+  "expirationDate": "2027-03-01T11:00:00Z",
+  "credentialSubject": {
+    "id": "did:key:z1v35qly3xq5xkb5xw5xkg7xzh2z3x5xk5xw5xkg7x",
+    "name": "Charlotte Weber",
+    "country": "AT",
+    "kycLevel": "enhanced",
+    "kycAttributes": {
+      "identityVerified": true,
+      "addressVerified": true,
+      "sourceOfFundsVerified": true,
+      "pepScreening": "negative",
+      "sanctionsScreening": "negative",
+      "riskScore": 0.02
+    },
+    "verificationDate": "2026-02-28",
+    "verifyingEntity": "OG Technologies EU"
+  },
+  "proof": {
+    "type": "EcdsaSecp256k1Signature2019",
+    "created": "2026-03-01T11:00:00Z",
+    "proofPurpose": "assertionMethod",
+    "verificationMethod": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#key-1",
+    "jws": "eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJkaWQ6a2V5OnoxVjM1cWx5M3hxNXhrYjV4dzV4a2c3eGgyejN4NXhrNXh3NXhrZzd4IiwiaXNzIjoiZGlkOmVic2k6QUJDREVGR0hJSktMTU5PUVJTVFVWV1hZWjAxMjM0NTY3ODkiLCJ2YyI6eyJAdHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIktZQ0NyZWRlbnRpYWwiXSwibmFtZSI6IkNoYXJsb3R0ZSBXZWJlciIsImNvdW50cnkiOiJBVCIsImt5Y0xldmVsIjoiZW5oYW5jZWQiLCJreWNBdHRyaWJ1dGVzIjp7ImlkZW50aXR5VmVyaWZpZWQiOnRydWUsImFkZHJlc3NWZXJpZmllZCI6dHJ1ZSwic291cmNlT2ZGdW5kc1ZlcmlmaWVkIjp0cnVlLCJwZXBTY3JlZW5pbmciOiJuZWdhdGl2ZSIsInNhbmN0aW9uc1NjcmVlbmluZyI6Im5lZ2F0aXZlIiwicmlza1Njb3JlIjowLjAyfSwidmVyaWZpY2F0aW9uRGF0ZSI6IjIwMjYtMDItMjgiLCJ2ZXJpZnlpbmdFbnRpdHkiOiJPRyBUZWNobm9sb2dpZXMgRVUifX0.Signature"
+  }
+}

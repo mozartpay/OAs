@@ -1,0 +1,34 @@
+{
+  "testId": "tc204-consent-attribute",
+  "name": "Consent Attribute VC",
+  "description": "Validates consent attribute Verifiable Credential with revocation capability",
+  "scenario": "consent-attribute",
+  "category": "vc-attributes",
+  "mozartpayCommand": "mozartpay did attest --method key --vc accreditation --name \"David Hoffmann\" --country CH --output json",
+  "passCriteria": {
+    "fieldPresence": ["@context", "id", "type", "issuer", "issuanceDate", "credentialSubject", "proof"],
+    "fieldValues": {
+      "type[0]": "VerifiableCredential",
+      "type[1]": "AccreditationCredential"
+    },
+    "vcValidation": {
+      "requiredClaims": ["sub", "iss", "consent"],
+      "requiredContexts": ["https://www.w3.org/2018/credentials/v1"],
+      "requiredTypes": ["VerifiableCredential", "AccreditationCredential"]
+    },
+    "passThreshold": 0.8
+  },
+  "inputFiles": {
+    "claims": "input.claims.json"
+  },
+  "expectedFiles": {
+    "vc": "expected.vc.jsonld",
+    "proof": "expected.proof.jwt"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["vc", "consent", "accreditation", "revocation"]
+  }
+}

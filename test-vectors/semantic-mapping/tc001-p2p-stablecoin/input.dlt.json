@@ -1,0 +1,16 @@
+{
+  "id": "direct-demo0001",
+  "from": "GDEMO_FROM0000000000000000000000000000000000000000000001",
+  "to": "GDEMO_TO00000000000000000000000000000000000000000000000001",
+  "amount": "100.0000000",
+  "asset": "USDC",
+  "rail": "direct",
+  "status": "confirmed",
+  "network": "stellar-testnet",
+  "memo": "E202603011234",
+  "fee": "0.00001 XLM",
+  "txHash": "DEMOA1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2",
+  "ledgerSeq": 50123456,
+  "createdAt": "2026-03-01T10:00:00Z",
+  "confirmedAt": "2026-03-01T10:00:05Z"
+}

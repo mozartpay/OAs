@@ -1,0 +1,13 @@
+{
+  "name": "David Hoffmann",
+  "country": "CH",
+  "consent": {
+    "consentGiven": true,
+    "consentType": "data-processing",
+    "dataCategories": ["payment-data", "transaction-history", "identity-data"],
+    "processingPurposes": ["regulatory-reporting", "fraud-prevention", "compliance"],
+    "retentionPeriod": "7-years",
+    "revocable": true
+  },
+  "accreditationLevel": "professional"
+}

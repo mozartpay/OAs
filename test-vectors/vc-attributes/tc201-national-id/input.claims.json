@@ -1,0 +1,12 @@
+{
+  "name": "Alice Mueller",
+  "country": "AT",
+  "nationalId": {
+    "type": "passport",
+    "identifier": "P9876543",
+    "issuingAuthority": "Austrian Ministry of Interior"
+  },
+  "dateOfBirth": "1990-05-15",
+  "kycLevel": "enhanced",
+  "amlExemption": false
+}

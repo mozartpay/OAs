@@ -1,0 +1,37 @@
+{
+  "testId": "tc004-cross-border",
+  "name": "Cross-Border FX Payment",
+  "description": "Validates cross-border payment with Tempo FX integration and ISO 20022 mapping",
+  "scenario": "cross-border",
+  "category": "semantic-mapping",
+  "dlt": "stellar",
+  "asset": "USDC",
+  "amount": "1000.00",
+  "mozartpayCommand": "mozartpay pay send --to GFOREIGN... --amount 1000 --asset USDC --rail tempo --network stellar-testnet --output json",
+  "passCriteria": {
+    "fieldPresence": ["GrpHdr.MsgId", "CdtTrfTxInf.PmtId.EndToEndId", "CdtTrfTxInf.Amt.InstdAmt"],
+    "fieldValues": {
+      "CdtTrfTxInf.Amt.InstdAmt.Ccy": "USD",
+      "CdtTrfTxInf.Amt.InstdAmt.value": "1000.00"
+    },
+    "supplementaryDataRequired": ["DltAsset", "FXData", "SettlementEvidence"],
+    "iso20022Validation": {
+      "messageType": "pacs.008.001.08",
+      "requiredElements": ["GrpHdr", "CdtTrfTxInf"]
+    },
+    "passThreshold": 0.8
+  },
+  "inputFiles": {
+    "dlt": "input.dlt.json"
+  },
+  "expectedFiles": {
+    "iso20022": "expected.iso20022.xml",
+    "supplementary": "expected.supplementary.json"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["stellar", "usdc", "tempo", "fx", "cross-border", "iso20022"]
+  }
+}

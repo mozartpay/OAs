@@ -1,0 +1,20 @@
+{
+  "DltAsset": {
+    "AssetType": "Stablecoin",
+    "AssetId": "USDC",
+    "Issuer": "Circle",
+    "Ledger": "Stellar",
+    "LedgerId": "public:stellar:testnet"
+  },
+  "ComplianceEvidence": {
+    "VcJwt": "eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJkaWQ6a2V5OnoxVjN...",
+    "VcFormat": "JWT",
+    "RequiredClaimsPresent": ["sub", "iss", "kycLevel", "amlScore"]
+  },
+  "SettlementEvidence": {
+    "BlockHash": "DEMOA1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2",
+    "ConfirmationCount": 12,
+    "FinalityStatus": "Final",
+    "LedgerSeq": 50123456
+  }
+}

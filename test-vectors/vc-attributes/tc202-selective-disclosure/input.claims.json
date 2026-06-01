@@ -1,0 +1,9 @@
+{
+  "name": "Bob Schmidt",
+  "country": "DE",
+  "kycLevel": "standard",
+  "selectiveDisclosure": {
+    "disclosedFields": ["kycLevel", "country"],
+    "hiddenFields": ["dateOfBirth", "address", "nationalId"]
+  }
+}

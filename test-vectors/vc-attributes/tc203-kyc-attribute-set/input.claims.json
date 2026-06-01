@@ -1,0 +1,15 @@
+{
+  "name": "Charlotte Weber",
+  "country": "AT",
+  "kycLevel": "enhanced",
+  "kycAttributes": {
+    "identityVerified": true,
+    "addressVerified": true,
+    "sourceOfFundsVerified": true,
+    "pepScreening": "negative",
+    "sanctionsScreening": "negative",
+    "riskScore": 0.02
+  },
+  "verificationDate": "2026-02-28",
+  "verifyingEntity": "OG Technologies EU"
+}

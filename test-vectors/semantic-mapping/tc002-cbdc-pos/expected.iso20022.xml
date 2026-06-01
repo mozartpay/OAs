@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr>
+      <MsgId>CBDCPOS202603011230</MsgId>
+      <CreDtTm>2026-03-01T11:30:00Z</CreDtTm>
+      <NbOfTxs>1</NbOfTxs>
+      <InitgPty>
+        <Nm>MozartPay</Nm>
+      </InitgPty>
+    </GrpHdr>
+    <CdtTrfTxInf>
+      <PmtId>
+        <EndToEndId>POS-12345</EndToEndId>
+        <TxId>DEMOB2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3</TxId>
+      </PmtId>
+      <Amt>
+        <InstdAmt Ccy="EUR">25.50</InstdAmt>
+      </Amt>
+      <ChrgBr>SHAR</ChrgBr>
+      <CdtrAgt>
+        <FinInstnId>
+          <ClrSysMmbId>
+            <MmbId>stellar-testnet</MmbId>
+          </ClrSysMmbId>
+        </FinInstnId>
+      </CdtrAgt>
+      <Cdtr>
+        <Nm>Merchant ABC</Nm>
+        <PstlAdr>
+          <StrtNm>Main Street</StrtNm>
+          <BldgNb>123</BldgNb>
+          <PstCd>1010</PstCd>
+          <TwnNm>Vienna</TwnNm>
+          <Ctry>AT</Ctry>
+        </PstlAdr>
+      </Cdtr>
+      <CdtrAcct>
+        <Id>
+          <Othr>
+            <Id>GDEMO_MERCHANT000000000000000000000000000000000000000000000001</Id>
+          </Othr>
+        </Id>
+      </CdtrAcct>
+      <RmtInf>
+        <Ustrd>CBDC POS Payment</Ustrd>
+      </RmtInf>
+      <SupplementaryData>
+        <Envlp>
+          <DltPaymentData xmlns="urn:mozartpay:dlt:payment:1.0">
+            <DltAsset>
+              <AssetType>CBDC</AssetType>
+              <AssetId>EURC</AssetId>
+              <Issuer>Circle</Issuer>
+              <Ledger>Stellar</Ledger>
+              <LedgerId>public:stellar:testnet</LedgerId>
+            </DltAsset>
+            <MerchantData>
+              <MerchantId>POS-12345</MerchantId>
+              <MerchantCategory>5411</MerchantCategory>
+              <TerminalId>TERM-001</TerminalId>
+            </MerchantData>
+            <SettlementEvidence>
+              <BlockHash>DEMOB2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3</BlockHash>
+              <ConfirmationCount>8</ConfirmationCount>
+              <FinalityStatus>Final</FinalityStatus>
+              <LedgerSeq>50123457</LedgerSeq>
+            </SettlementEvidence>
+          </DltPaymentData>
+        </Envlp>
+      </SupplementaryData>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>

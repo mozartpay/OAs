@@ -1,0 +1,16 @@
+{
+  "id": "merchant-settle-003",
+  "from": "GDEMO_ACQUIRER000000000000000000000000000000000000000000000001",
+  "to": "GDEMO_SETTLE00000000000000000000000000000000000000000000000001",
+  "amount": "1250.7500000",
+  "asset": "USDC",
+  "rail": "direct",
+  "status": "confirmed",
+  "network": "stellar-testnet",
+  "memo": "BATCH-SETTLE-001",
+  "fee": "0.00005 XLM",
+  "txHash": "DEMOC3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4",
+  "ledgerSeq": 50123458,
+  "createdAt": "2026-03-01T15:00:00Z",
+  "confirmedAt": "2026-03-01T15:00:06Z"
+}

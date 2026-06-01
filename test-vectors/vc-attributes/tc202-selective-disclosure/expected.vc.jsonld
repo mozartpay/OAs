@@ -1,0 +1,24 @@
+{
+  "@context": [
+    "https://www.w3.org/2018/credentials/v1",
+    "https://w3id.org/security/bbs/v1"
+  ],
+  "id": "urn:uuid:qrst-uvwx-yzab-cdef",
+  "type": ["VerifiableCredential", "KYCCredential"],
+  "issuer": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+  "issuanceDate": "2026-03-01T10:00:00Z",
+  "expirationDate": "2027-03-01T10:00:00Z",
+  "credentialSubject": {
+    "id": "did:key:z1v35qly3xq5xkb5xw5xkg7xzh2z3x5xk5xw5xkg7x",
+    "name": "Bob Schmidt",
+    "country": "DE",
+    "kycLevel": "standard"
+  },
+  "proof": {
+    "type": "BbsBlsSignature2020",
+    "created": "2026-03-01T10:00:00Z",
+    "proofPurpose": "assertionMethod",
+    "verificationMethod": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK#key-1",
+    "jws": "eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJkaWQ6a2V5OnoxVjM1cWx5M3hxNXhrYjV4dzV4a2c3eGgyejN4NXhrNXh3NXhrZzd4IiwiaXNzIjoiZGlkOmtleTp6Nk1raGFaZ0JaRHZvdERrTDUyNTdmYWl6dGlHaUMyUXRLTEdwYm5uRUd0YTJkb0siLCJ2YyI6eyJAdHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIktZQ0NyZWRlbnRpYWwiXSwibmFtZSI6IkJvYiBTY2htaWR0IiwiY291bnRyeSI6IkRFIiwia3ljTGV2ZWwiOiJzdGFuZGFyZCJ9fQ.Signature"
+  }
+}

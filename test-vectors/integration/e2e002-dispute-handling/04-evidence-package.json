@@ -1,0 +1,58 @@
+{
+  "evidenceId": "EVD-E2E002-20260301-001",
+  "disputeId": "DSP-E2E002-20260301-001",
+  "transactionHash": "E2E002B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6",
+  "evidenceItems": [
+    {
+      "id": "evd-001",
+      "type": "transaction-proof",
+      "description": "Stellar transaction proof",
+      "hash": "0xe2e002evd001",
+      "timestamp": "2026-03-01T14:00:06Z",
+      "data": {
+        "ledgerSeq": 50123464,
+        "txHash": "E2E002B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6",
+        "confirmedAt": "2026-03-01T14:00:06Z"
+      }
+    },
+    {
+      "id": "evd-002",
+      "type": "vc-proof",
+      "description": "KYC verification credential",
+      "hash": "0xe2e002evd002",
+      "timestamp": "2026-03-01T13:05:00Z",
+      "data": {
+        "vcId": "urn:uuid:e2e002-vc-67890",
+        "vcHash": "0xe2e002vc67890",
+        "kycLevel": "enhanced"
+      }
+    },
+    {
+      "id": "evd-003",
+      "type": "compliance-report",
+      "description": "Post-transaction compliance report",
+      "hash": "0xe2e002evd003",
+      "timestamp": "2026-03-01T14:05:00Z",
+      "data": {
+        "reportId": "E2E-RPT-20260301-002",
+        "amlRiskScore": 0.025,
+        "kycVerified": true
+      }
+    },
+    {
+      "id": "evd-004",
+      "type": "communication-log",
+      "description": "Buyer-seller communication records",
+      "hash": "0xe2e002evd004",
+      "timestamp": "2026-03-01T14:08:00Z",
+      "data": {
+        "messageCount": 5,
+        "lastMessage": "2026-03-01T14:08:00Z",
+        "disputeRaised": true
+      }
+    }
+  ],
+  "evidenceHash": "0xe2e002evidencehash",
+  "createdAt": "2026-03-01T14:12:00Z",
+  "status": "collected"
+}

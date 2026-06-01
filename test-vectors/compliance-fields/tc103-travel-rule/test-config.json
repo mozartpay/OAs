@@ -1,0 +1,34 @@
+{
+  "testId": "tc103-travel-rule",
+  "name": "Travel Rule Compliance",
+  "description": "Validates Travel Rule compliance with originator and beneficiary information",
+  "scenario": "travel-rule",
+  "category": "compliance-fields",
+  "mozartpayCommand": "mozartpay pay send --to GDEMO... --amount 3000 --asset USDC --rail direct --network stellar-testnet --memo TR-COMPLIANT --output json && mozartpay report generate --vc-attach --output json",
+  "passCriteria": {
+    "fieldPresence": ["travelRule", "originatorInfo", "beneficiaryInfo"],
+    "fieldValues": {
+      "travelRule.complianceStatus": "pass"
+    },
+    "vcValidation": {
+      "requiredClaims": ["sub", "iss", "kycLevel"],
+      "minTrustScore": 0.8
+    },
+    "complianceValidation": {
+      "travelRuleCompliant": true
+    },
+    "passThreshold": 0.8
+  },
+  "inputFiles": {
+    "vc": "input.vc.jwt"
+  },
+  "expectedFiles": {
+    "report": "expected.report.json"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["travel-rule", "fatf", "compliance"]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "cross-border-004",
+  "from": "GDEMO_SENDER0000000000000000000000000000000000000000000000001",
+  "to": "GDEMO_RECEIVER0000000000000000000000000000000000000000000000001",
+  "amount": "1000.0000000",
+  "asset": "USDC",
+  "rail": "tempo",
+  "status": "confirmed",
+  "network": "stellar-testnet",
+  "memo": "FX-TRANSFER-001",
+  "fee": "0.00100 USDC",
+  "fxRate": "0.923456",
+  "txHash": "DEMOD4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5",
+  "ledgerSeq": 50123459,
+  "createdAt": "2026-03-01T16:45:00Z",
+  "confirmedAt": "2026-03-01T16:48:00Z"
+}

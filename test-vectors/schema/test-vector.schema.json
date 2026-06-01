@@ -1,0 +1,223 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mozartpay.com/schemas/test-vector.schema.json",
+  "title": "Test Vector Configuration Schema",
+  "description": "Schema for test-config.json files defining pass/fail criteria for MozartPay conformance tests",
+  "type": "object",
+  "required": ["testId", "name", "description", "scenario", "passCriteria"],
+  "properties": {
+    "testId": {
+      "type": "string",
+      "description": "Unique test case identifier (e.g., tc001-p2p-stablecoin)",
+      "pattern": "^(tc|e2e)[0-9]{3}-[a-z0-9-]+$"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable test case name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of what the test validates"
+    },
+    "scenario": {
+      "type": "string",
+      "description": "Test scenario category",
+      "enum": ["p2p-stablecoin", "cbdc-pos", "merchant-settlement", "cross-border", "kyc-verified", "aml-threshold", "travel-rule", "consent-proof", "national-id", "selective-disclosure", "kyc-attribute-set", "consent-attribute", "full-payment-flow", "dispute-handling"]
+    },
+    "category": {
+      "type": "string",
+      "description": "Test category",
+      "enum": ["semantic-mapping", "compliance-fields", "vc-attributes", "integration"]
+    },
+    "dlt": {
+      "type": "string",
+      "description": "Distributed ledger technology",
+      "enum": ["stellar", "ethereum", "polygon", "solana"]
+    },
+    "asset": {
+      "type": "string",
+      "description": "Asset code (e.g., USDC, XLM, EURC)"
+    },
+    "amount": {
+      "type": "string",
+      "description": "Transaction amount",
+      "pattern": "^[0-9]+(\\.[0-9]+)?$"
+    },
+    "mozartpayCommand": {
+      "type": "string",
+      "description": "MozartPay CLI command that produces the output"
+    },
+    "passCriteria": {
+      "type": "object",
+      "description": "Pass/fail criteria for the test",
+      "required": ["passThreshold"],
+      "properties": {
+        "fieldPresence": {
+          "type": "array",
+          "description": "List of required field paths (dot notation)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fieldValues": {
+          "type": "object",
+          "description": "Expected values for specific fields (dot notation keys)",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean"]
+          }
+        },
+        "fieldTypes": {
+          "type": "object",
+          "description": "Expected types for specific fields",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "array", "object", "null"]
+          }
+        },
+        "supplementaryDataRequired": {
+          "type": "array",
+          "description": "Required supplementary data fields",
+          "items": {
+            "type": "string"
+          }
+        },
+        "vcValidation": {
+          "type": "object",
+          "description": "Verifiable Credential validation criteria",
+          "properties": {
+            "requiredClaims": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "minTrustScore": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "requiredContexts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "requiredTypes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "iso20022Validation": {
+          "type": "object",
+          "description": "ISO 20022 XML validation criteria",
+          "properties": {
+            "messageType": {
+              "type": "string",
+              "enum": ["pacs.008.001.08", "pacs.008.001.10"]
+            },
+            "requiredElements": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "complianceValidation": {
+          "type": "object",
+          "description": "Compliance report validation criteria",
+          "properties": {
+            "kycStatus": {
+              "type": "string",
+              "enum": ["verified", "pending", "failed"]
+            },
+            "amlThresholdPassed": {
+              "type": "boolean"
+            },
+            "travelRuleCompliant": {
+              "type": "boolean"
+            }
+          }
+        },
+        "passThreshold": {
+          "type": "number",
+          "description": "Minimum pass rate (0.0 to 1.0) for this test",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "inputFiles": {
+      "type": "object",
+      "description": "Input files required for this test",
+      "properties": {
+        "dlt": {
+          "type": "string",
+          "description": "Path to DLT transaction input file"
+        },
+        "vc": {
+          "type": "string",
+          "description": "Path to Verifiable Credential input file"
+        },
+        "claims": {
+          "type": "string",
+          "description": "Path to claims input file"
+        }
+      }
+    },
+    "expectedFiles": {
+      "type": "object",
+      "description": "Expected output files for validation",
+      "properties": {
+        "iso20022": {
+          "type": "string",
+          "description": "Path to expected ISO 20022 XML output"
+        },
+        "supplementary": {
+          "type": "string",
+          "description": "Path to expected supplementary data JSON"
+        },
+        "report": {
+          "type": "string",
+          "description": "Path to expected compliance report JSON"
+        },
+        "vc": {
+          "type": "string",
+          "description": "Path to expected VC JSON-LD output"
+        },
+        "proof": {
+          "type": "string",
+          "description": "Path to expected proof JWT"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata about the test",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Test version"
+        },
+        "author": {
+          "type": "string",
+          "description": "Test author"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

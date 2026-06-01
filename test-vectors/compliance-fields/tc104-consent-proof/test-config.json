@@ -1,0 +1,35 @@
+{
+  "testId": "tc104-consent-proof",
+  "name": "Consent Proof Verification",
+  "description": "Validates user consent proof for data processing and regulatory compliance",
+  "scenario": "consent-proof",
+  "category": "compliance-fields",
+  "mozartpayCommand": "mozartpay did attest --method ebsi --vc kyc --name \"Alice Brown\" --country DE --output json && mozartpay report generate --vc-attach --output json",
+  "passCriteria": {
+    "fieldPresence": ["consentProof", "consentGiven", "consentTimestamp"],
+    "fieldValues": {
+      "consentProof.consentGiven": true
+    },
+    "vcValidation": {
+      "requiredClaims": ["sub", "iss", "consent"],
+      "minTrustScore": 0.75
+    },
+    "complianceValidation": {
+      "kycStatus": "verified",
+      "consentVerified": true
+    },
+    "passThreshold": 0.8
+  },
+  "inputFiles": {
+    "vc": "input.vc.jwt"
+  },
+  "expectedFiles": {
+    "report": "expected.report.json"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["consent", "gdpr", "compliance"]
+  }
+}

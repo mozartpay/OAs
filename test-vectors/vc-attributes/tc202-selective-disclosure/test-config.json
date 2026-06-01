@@ -1,0 +1,34 @@
+{
+  "testId": "tc202-selective-disclosure",
+  "name": "Selective Disclosure VC",
+  "description": "Validates selective disclosure mechanism where only specific claims are revealed from a VC",
+  "scenario": "selective-disclosure",
+  "category": "vc-attributes",
+  "mozartpayCommand": "mozartpay did attest --method key --vc kyc --name \"Bob Schmidt\" --country DE --output json",
+  "passCriteria": {
+    "fieldPresence": ["@context", "id", "type", "issuer", "issuanceDate", "credentialSubject", "proof"],
+    "fieldValues": {
+      "type[0]": "VerifiableCredential",
+      "type[1]": "KYCCredential"
+    },
+    "vcValidation": {
+      "requiredClaims": ["sub", "iss", "kycLevel"],
+      "requiredContexts": ["https://www.w3.org/2018/credentials/v1"],
+      "requiredTypes": ["VerifiableCredential", "KYCCredential"]
+    },
+    "passThreshold": 0.8
+  },
+  "inputFiles": {
+    "claims": "input.claims.json"
+  },
+  "expectedFiles": {
+    "vc": "expected.vc.jsonld",
+    "proof": "expected.proof.jwt"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["vc", "selective-disclosure", "privacy", "zkp"]
+  }
+}

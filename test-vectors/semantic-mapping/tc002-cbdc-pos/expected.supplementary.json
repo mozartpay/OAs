@@ -1,0 +1,20 @@
+{
+  "DltAsset": {
+    "AssetType": "CBDC",
+    "AssetId": "EURC",
+    "Issuer": "Circle",
+    "Ledger": "Stellar",
+    "LedgerId": "public:stellar:testnet"
+  },
+  "MerchantData": {
+    "MerchantId": "POS-12345",
+    "MerchantCategory": "5411",
+    "TerminalId": "TERM-001"
+  },
+  "SettlementEvidence": {
+    "BlockHash": "DEMOB2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3",
+    "ConfirmationCount": 8,
+    "FinalityStatus": "Final",
+    "LedgerSeq": 50123457
+  }
+}

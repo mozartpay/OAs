@@ -1,0 +1,32 @@
+{
+  "testId": "e2e002-dispute-handling",
+  "name": "End-to-End Dispute Handling Flow",
+  "description": "Validates dispute handling workflow from payment dispute through evidence collection to resolution",
+  "scenario": "dispute-handling",
+  "category": "integration",
+  "mozartpayCommand": "mozartpay pay send --to GDEMO... --amount 2000 --asset USDC --rail direct --network stellar-testnet --memo DISPUTE-TEST --output json && mozartpay report generate --vc-attach --output json && mozartpay dispute create --tx E2E002... --reason goods-not-received --output json",
+  "passCriteria": {
+    "fieldPresence": ["payment", "report", "dispute", "evidence"],
+    "fieldValues": {
+      "dispute.status": "open",
+      "payment.status": "confirmed"
+    },
+    "vcValidation": {
+      "requiredClaims": ["sub", "iss", "kycLevel"],
+      "minTrustScore": 0.8
+    },
+    "passThreshold": 0.8
+  },
+  "expectedFiles": {
+    "payment": "01-dispute-payment.json",
+    "report": "02-dispute-report.json",
+    "dispute": "03-dispute-creation.json",
+    "evidence": "04-evidence-package.json"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["e2e", "integration", "dispute", "evidence"]
+  }
+}

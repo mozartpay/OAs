@@ -1,0 +1,15 @@
+{
+  "id": "did:ebsi:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "method": "ebsi",
+  "verificationMethod": [
+    {
+      "id": "did:ebsi:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#key-1",
+      "type": "EcdsaSecp256k1VerificationKey2019",
+      "controller": "did:ebsi:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+      "publicKeyHex": "0250863ad64a87ae8a2fe83c1af1a8403cb53f53e486d8511dad8a04887e5b2352"
+    }
+  ],
+  "authentication": ["did:ebsi:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#key-1"],
+  "assertionMethod": ["did:ebsi:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#key-1"],
+  "created": "2026-03-01T08:00:00Z"
+}

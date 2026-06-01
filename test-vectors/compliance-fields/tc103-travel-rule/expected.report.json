@@ -1,0 +1,77 @@
+{
+  "reportId": "RPT-20260301-003",
+  "generatedAt": "2026-03-01T14:00:00Z",
+  "payment": {
+    "id": "travel-rule-003",
+    "from": "GDEMO_ORIGINATOR00000000000000000000000000000000000000000000001",
+    "to": "GDEMO_BENEFICIARY0000000000000000000000000000000000000000000001",
+    "amount": "3000.0000000",
+    "asset": "USDC",
+    "rail": "direct",
+    "status": "confirmed",
+    "network": "stellar-testnet",
+    "memo": "TR-COMPLIANT",
+    "fee": "0.00003 XLM",
+    "txHash": "DEMOF6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6",
+    "ledgerSeq": 50123461,
+    "createdAt": "2026-03-01T13:55:00Z",
+    "confirmedAt": "2026-03-01T13:55:05Z"
+  },
+  "did": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "vcAttached": true,
+  "vc": {
+    "@context": [
+      "https://www.w3.org/2018/credentials/v1",
+      "https://w3id.org/ebsi/2024/credentials/v1"
+    ],
+    "id": "urn:uuid:5555-6666-7777-8888",
+    "type": ["VerifiableCredential", "TravelRuleCredential"],
+    "issuer": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    "issuanceDate": "2026-03-01T09:00:00Z",
+    "expirationDate": "2027-03-01T09:00:00Z",
+    "credentialSubject": {
+      "id": "did:key:z1v35qly3xq5xkb5xw5xkg7xzh2z3x5xk5xw5xkg7x",
+      "kycLevel": "enhanced",
+      "originatorInfo": {
+        "name": "John Doe",
+        "address": "123 Main St",
+        "city": "Vienna",
+        "country": "AT"
+      },
+      "beneficiaryInfo": {
+        "name": "Jane Smith",
+        "address": "456 Other St",
+        "city": "Berlin",
+        "country": "DE"
+      }
+    },
+    "proof": {
+      "type": "EcdsaSecp256k1Signature2019",
+      "created": "2026-03-01T09:00:00Z",
+      "proofPurpose": "assertionMethod",
+      "verificationMethod": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#key-1",
+      "jws": "eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ..."
+    }
+  },
+  "kycVerification": {
+    "status": "verified",
+    "verifier": "OG Technologies EU",
+    "vcHash": "0xghi789...",
+    "kycLevel": "enhanced",
+    "verifiedAt": "2026-03-01T09:05:00Z"
+  },
+  "amlAssessment": {
+    "riskScore": 0.018,
+    "thresholdPassed": true,
+    "ruleIds": ["AML-RULE-01", "AML-RULE-03"],
+    "assessmentDate": "2026-03-01T14:00:00Z"
+  },
+  "travelRule": {
+    "originatorInfo": "present",
+    "beneficiaryInfo": "present",
+    "complianceStatus": "pass",
+    "fatfCompliant": true,
+    "transmittedAt": "2026-03-01T13:55:10Z"
+  },
+  "auditHash": "0xghi789def456123"
+}

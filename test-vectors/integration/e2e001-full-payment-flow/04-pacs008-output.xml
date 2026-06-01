@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr>
+      <MsgId>E2E202603010900</MsgId>
+      <CreDtTm>2026-03-01T09:00:00Z</CreDtTm>
+      <NbOfTxs>1</NbOfTxs>
+      <InitgPty>
+        <Nm>MozartPay</Nm>
+        <Id>
+          <OrgId>
+            <Othr>
+              <Id>MOZARTPAY</Id>
+            </Othr>
+          </OrgId>
+        </Id>
+      </InitgPty>
+    </GrpHdr>
+    <CdtTrfTxInf>
+      <PmtId>
+        <EndToEndId>E2E-TEST-001</EndToEndId>
+        <TxId>E2E001A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5</TxId>
+      </PmtId>
+      <Amt>
+        <InstdAmt Ccy="USD">500.00</InstdAmt>
+      </Amt>
+      <ChrgBr>SHAR</ChrgBr>
+      <CdtrAgt>
+        <FinInstnId>
+          <ClrSysMmbId>
+            <MmbId>stellar-testnet</MmbId>
+          </ClrSysMmbId>
+        </FinInstnId>
+      </CdtrAgt>
+      <Cdtr>
+        <Nm>Merchant</Nm>
+        <PstlAdr>
+          <Ctry>PL</Ctry>
+        </PstlAdr>
+      </Cdtr>
+      <CdtrAcct>
+        <Id>
+          <Othr>
+            <Id>GDEMO_MERCHANT000000000000000000000000000000000000000000000001</Id>
+          </Othr>
+        </Id>
+      </CdtrAcct>
+      <RmtInf>
+        <Ustrd>End-to-End Test Payment</Ustrd>
+      </RmtInf>
+      <SupplementaryData>
+        <Envlp>
+          <DltPaymentData xmlns="urn:mozartpay:dlt:payment:1.0">
+            <DltAsset>
+              <AssetType>Stablecoin</AssetType>
+              <AssetId>USDC</AssetId>
+              <Issuer>Circle</Issuer>
+              <Ledger>Stellar</Ledger>
+              <LedgerId>public:stellar:testnet</LedgerId>
+            </DltAsset>
+            <SettlementEvidence>
+              <BlockHash>E2E001A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5</BlockHash>
+              <ConfirmationCount">10</ConfirmationCount>
+              <FinalityStatus>Final</FinalityStatus>
+              <LedgerSeq>50123463</LedgerSeq>
+            </SettlementEvidence>
+            <ComplianceEvidence>
+              <VcJwt>eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ...</VcJwt>
+              <VcFormat>JWT</VcFormat>
+              <RequiredClaimsPresent>["sub", "iss", "kycLevel"]</RequiredClaimsPresent>
+            </ComplianceEvidence>
+          </DltPaymentData>
+        </Envlp>
+      </SupplementaryData>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>

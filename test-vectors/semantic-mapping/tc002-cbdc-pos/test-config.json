@@ -1,0 +1,37 @@
+{
+  "testId": "tc002-cbdc-pos",
+  "name": "CBDC Point-of-Sale Payment",
+  "description": "Validates CBDC payment at POS with ISO 20022 mapping including merchant identification and settlement details",
+  "scenario": "cbdc-pos",
+  "category": "semantic-mapping",
+  "dlt": "stellar",
+  "asset": "EURC",
+  "amount": "25.50",
+  "mozartpayCommand": "mozartpay pay send --to GMERCHANT... --amount 25.50 --asset EURC --rail direct --network stellar-testnet --memo POS-12345 --output json",
+  "passCriteria": {
+    "fieldPresence": ["GrpHdr.MsgId", "CdtTrfTxInf.PmtId.EndToEndId", "CdtTrfTxInf.Cdtr.Nm"],
+    "fieldValues": {
+      "CdtTrfTxInf.Amt.InstdAmt.Ccy": "EUR",
+      "CdtTrfTxInf.Amt.InstdAmt.value": "25.50"
+    },
+    "supplementaryDataRequired": ["DltAsset", "MerchantData", "SettlementEvidence"],
+    "iso20022Validation": {
+      "messageType": "pacs.008.001.08",
+      "requiredElements": ["GrpHdr", "CdtTrfTxInf", "Cdtr"]
+    },
+    "passThreshold": 0.8
+  },
+  "inputFiles": {
+    "dlt": "input.dlt.json"
+  },
+  "expectedFiles": {
+    "iso20022": "expected.iso20022.xml",
+    "supplementary": "expected.supplementary.json"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["stellar", "eurc", "cbdc", "pos", "iso20022"]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "@context": [
+    "https://www.w3.org/2018/credentials/v1",
+    "https://w3id.org/security/v1"
+  ],
+  "id": "urn:uuid:wxyz-abcd-efgh-ijkl",
+  "type": ["VerifiableCredential", "AccreditationCredential"],
+  "issuer": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+  "issuanceDate": "2026-03-01T12:00:00Z",
+  "expirationDate": "2027-03-01T12:00:00Z",
+  "credentialSubject": {
+    "id": "did:key:z1v35qly3xq5xkb5xw5xkg7xzh2z3x5xk5xw5xkg7x",
+    "name": "David Hoffmann",
+    "country": "CH",
+    "consent": {
+      "consentGiven": true,
+      "consentType": "data-processing",
+      "dataCategories": ["payment-data", "transaction-history", "identity-data"],
+      "processingPurposes": ["regulatory-reporting", "fraud-prevention", "compliance"],
+      "retentionPeriod": "7-years",
+      "revocable": true
+    },
+    "accreditationLevel": "professional"
+  },
+  "proof": {
+    "type": "EcdsaSecp256k1Signature2019",
+    "created": "2026-03-01T12:00:00Z",
+    "proofPurpose": "assertionMethod",
+    "verificationMethod": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK#key-1",
+    "jws": "eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJkaWQ6a2V5OnoxVjM1cWx5M3hxNXhrYjV4dzV4a2c3eGgyejN4NXhrNXh3NXhrZzd4IiwiaXNzIjoiZGlkOmtleTp6Nk1raGFaZ0JaRHZvdERrTDUyNTdmYWl6dGlHaUMyUXRLTEdwYm5uRUd0YTJkb0siLCJ2YyI6eyJAdHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIkFjY3JlZGl0YXRpb25DcmVkZW50aWFsIl0sIm5hbWUiOiJEYXZpZCBIb2ZmbWFubiIsImNvdW50cnkiOiJDSCIsImNvbnNlbnQiOnsiY29uc2VudEdpdmVuIjp0cnVlLCJjb25zZW50VHlwZSI6ImRhdGEtcHJvY2Vzc2luZyIsImRhdGFDYXRlZ29yaWVzIjpbInBheW1lbnQtZGF0YSIsInRyYW5zYWN0aW9uLWhpc3RvcnkiLCJpZGVudGl0eS1kYXRhIl0sInByb2Nlc3NpbmdQdXJwb3NlcyI6WyJyZWd1bGF0b3J5LXJlcG9ydGluZyIsImZyYXVkLXByZXZlbnRpb24iLCJjb21wbGlhbmNlIl0sInJldGVudGlvblBlcmlvZCI6IjcteWVhcnMiLCJyZXZvY2FibGUiOnRydWV9LCJhY2NyZWRpdGF0aW9uTGV2ZWwiOiJwcm9mZXNzaW9uYWwifX0.Signature"
+  }
+}

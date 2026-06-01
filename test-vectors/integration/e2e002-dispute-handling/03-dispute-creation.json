@@ -1,0 +1,15 @@
+{
+  "disputeId": "DSP-E2E002-20260301-001",
+  "transactionHash": "E2E002B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6",
+  "disputer": "GDEMO_BUYER0000000000000000000000000000000000000000000000001",
+  "disputee": "GDEMO_SELLER0000000000000000000000000000000000000000000000001",
+  "amount": "2000.0000000",
+  "asset": "USDC",
+  "reason": "goods-not-received",
+  "description": "Goods ordered but not delivered within expected timeframe",
+  "status": "open",
+  "createdAt": "2026-03-01T14:10:00Z",
+  "escalationLevel": 1,
+  "category": "delivery",
+  "priority": "normal"
+}

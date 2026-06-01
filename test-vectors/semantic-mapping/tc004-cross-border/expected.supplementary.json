@@ -1,0 +1,23 @@
+{
+  "DltAsset": {
+    "AssetType": "Stablecoin",
+    "AssetId": "USDC",
+    "Issuer": "Circle",
+    "Ledger": "Stellar",
+    "LedgerId": "public:stellar:testnet"
+  },
+  "FXData": {
+    "Provider": "Tempo",
+    "SourceCurrency": "USDC",
+    "TargetCurrency": "EUR",
+    "FXRate": "0.923456",
+    "QuoteId": "TEMPO-Q-20260301-001",
+    "SettlementTime": "~3 minutes"
+  },
+  "SettlementEvidence": {
+    "BlockHash": "DEMOD4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5",
+    "ConfirmationCount": 20,
+    "FinalityStatus": "Final",
+    "LedgerSeq": 50123459
+  }
+}

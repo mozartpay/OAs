@@ -1,0 +1,195 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mozartpay.com/schemas/results.schema.json",
+  "title": "Test Results Schema",
+  "description": "Schema for test results output from conformance test runs",
+  "type": "object",
+  "required": ["testRun", "timestamp", "results", "summary"],
+  "properties": {
+    "testRun": {
+      "type": "string",
+      "description": "Unique identifier for this test run (timestamp)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the test run started"
+    },
+    "environment": {
+      "type": "object",
+      "description": "Test environment information",
+      "properties": {
+        "mozartpayVersion": {
+          "type": "string",
+          "description": "MozartPay CLI version"
+        },
+        "os": {
+          "type": "string",
+          "description": "Operating system"
+        },
+        "goVersion": {
+          "type": "string",
+          "description": "Go runtime version"
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "description": "Individual test results",
+      "items": {
+        "type": "object",
+        "required": ["testId", "status", "timestamp"],
+        "properties": {
+          "testId": {
+            "type": "string",
+            "description": "Test case identifier"
+          },
+          "testName": {
+            "type": "string",
+            "description": "Human-readable test name"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["semantic-mapping", "compliance-fields", "vc-attributes", "integration"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail", "skip", "error"]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration": {
+            "type": "number",
+            "description": "Test execution duration in milliseconds"
+          },
+          "score": {
+            "type": "number",
+            "description": "Test score (0.0 to 1.0)",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "validations": {
+            "type": "array",
+            "description": "Individual validation checks",
+            "items": {
+              "type": "object",
+              "required": ["check", "passed"],
+              "properties": {
+                "check": {
+                  "type": "string",
+                  "description": "Description of the validation check"
+                },
+                "passed": {
+                  "type": "boolean"
+                },
+                "expected": {
+                  "description": "Expected value"
+                },
+                "actual": {
+                  "description": "Actual value"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Additional validation message"
+                }
+              }
+            }
+          },
+          "errors": {
+            "type": "array",
+            "description": "Error messages if test failed",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "description": "Warning messages",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total", "passed", "failed", "skipped", "passRate"],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passRate": {
+          "type": "number",
+          "description": "Overall pass rate (0.0 to 1.0)",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "targetPassRate": {
+          "type": "number",
+          "description": "Target pass rate for conformance",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.8
+        },
+        "conformanceStatus": {
+          "type": "string",
+          "enum": ["passed", "failed"],
+          "description": "Overall conformance status based on target pass rate"
+        },
+        "categoryBreakdown": {
+          "type": "object",
+          "description": "Pass/fail breakdown by category",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "passed": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "passRate": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata about the test run",
+      "properties": {
+        "runnerVersion": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string",
+          "description": "Test filter applied (if any)"
+        }
+      }
+    }
+  }
+}

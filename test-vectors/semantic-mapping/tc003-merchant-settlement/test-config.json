@@ -1,0 +1,37 @@
+{
+  "testId": "tc003-merchant-settlement",
+  "name": "Merchant Settlement Batch",
+  "description": "Validates batch settlement of multiple merchant transactions with ISO 20022 aggregation",
+  "scenario": "merchant-settlement",
+  "category": "semantic-mapping",
+  "dlt": "stellar",
+  "asset": "USDC",
+  "amount": "1250.75",
+  "mozartpayCommand": "mozartpay pay send --to GSETTLEMENT... --amount 1250.75 --asset USDC --rail direct --network stellar-testnet --memo BATCH-SETTLE-001 --output json",
+  "passCriteria": {
+    "fieldPresence": ["GrpHdr.MsgId", "CdtTrfTxInf.PmtId.EndToEndId", "CdtTrfTxInf.Amt.InstdAmt"],
+    "fieldValues": {
+      "CdtTrfTxInf.Amt.InstdAmt.Ccy": "USD",
+      "CdtTrfTxInf.Amt.InstdAmt.value": "1250.75"
+    },
+    "supplementaryDataRequired": ["DltAsset", "BatchData", "SettlementEvidence"],
+    "iso20022Validation": {
+      "messageType": "pacs.008.001.08",
+      "requiredElements": ["GrpHdr", "CdtTrfTxInf"]
+    },
+    "passThreshold": 0.8
+  },
+  "inputFiles": {
+    "dlt": "input.dlt.json"
+  },
+  "expectedFiles": {
+    "iso20022": "expected.iso20022.xml",
+    "supplementary": "expected.supplementary.json"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "OG Technologies EU",
+    "created": "2026-06-01T12:00:00Z",
+    "tags": ["stellar", "usdc", "settlement", "batch", "iso20022"]
+  }
+}

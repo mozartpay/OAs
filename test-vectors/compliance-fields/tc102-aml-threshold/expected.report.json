@@ -1,0 +1,62 @@
+{
+  "reportId": "RPT-20260301-002",
+  "generatedAt": "2026-03-01T12:30:00Z",
+  "payment": {
+    "id": "aml-threshold-002",
+    "from": "GDEMO_SENDER0000000000000000000000000000000000000000000000001",
+    "to": "GDEMO_RECEIVER0000000000000000000000000000000000000000000000001",
+    "amount": "5000.0000000",
+    "asset": "USDC",
+    "rail": "direct",
+    "status": "confirmed",
+    "network": "stellar-testnet",
+    "fee": "0.00005 XLM",
+    "txHash": "DEMOE5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5",
+    "ledgerSeq": 50123460,
+    "createdAt": "2026-03-01T12:25:00Z",
+    "confirmedAt": "2026-03-01T12:25:06Z"
+  },
+  "did": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "vcAttached": true,
+  "vc": {
+    "@context": [
+      "https://www.w3.org/2018/credentials/v1",
+      "https://w3id.org/ebsi/2024/credentials/v1"
+    ],
+    "id": "urn:uuid:9876-5432-1abc-1def",
+    "type": ["VerifiableCredential", "KYCCredential"],
+    "issuer": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    "issuanceDate": "2026-03-01T09:00:00Z",
+    "expirationDate": "2027-03-01T09:00:00Z",
+    "credentialSubject": {
+      "id": "did:key:z1v35qly3xq5xkb5xw5xkg7xzh2z3x5xk5xw5xkg7x",
+      "kycLevel": "enhanced",
+      "amlScore": 0.015,
+      "amlExemption": false,
+      "lastAssessment": "2026-02-28"
+    },
+    "proof": {
+      "type": "EcdsaSecp256k1Signature2019",
+      "created": "2026-03-01T09:00:00Z",
+      "proofPurpose": "assertionMethod",
+      "verificationMethod": "did:ebsi:ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#key-1",
+      "jws": "eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ..."
+    }
+  },
+  "kycVerification": {
+    "status": "verified",
+    "verifier": "OG Technologies EU",
+    "vcHash": "0xabc789...",
+    "kycLevel": "enhanced",
+    "verifiedAt": "2026-03-01T09:05:00Z"
+  },
+  "amlAssessment": {
+    "riskScore": 0.015,
+    "thresholdPassed": true,
+    "ruleIds": ["AML-RULE-01", "AML-RULE-02", "AML-RULE-05"],
+    "assessmentDate": "2026-03-01T12:30:00Z",
+    "thresholdAmount": "10000.00",
+    "transactionAmount": "5000.00"
+  },
+  "auditHash": "0xdef456abc123789"
+}

@@ -1,0 +1,493 @@
+{
+  "testRun": "20260301_120000",
+  "timestamp": "2026-03-01T12:00:00Z",
+  "environment": {
+    "runnerVersion": "1.0.0",
+    "schemaVersion": "1.0.0",
+    "mozartpayVersion": "v0.1.0-mvp",
+    "os": "macOS",
+    "goVersion": "go1.22.0"
+  },
+  "results": [
+    {
+      "testId": "tc001-p2p-stablecoin",
+      "testName": "P2P Stablecoin Payment with ISO 20022 Mapping",
+      "category": "semantic-mapping",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:05Z",
+      "duration": 120,
+      "score": 0.833,
+      "validations": [
+        {
+          "check": "Field presence: GrpHdr.MsgId",
+          "passed": true
+        },
+        {
+          "check": "Field presence: CdtTrfTxInf.PmtId.EndToEndId",
+          "passed": true
+        },
+        {
+          "check": "Field presence: CdtTrfTxInf.Amt.InstdAmt",
+          "passed": true
+        },
+        {
+          "check": "Field value: CdtTrfTxInf.Amt.InstdAmt.Ccy = USD",
+          "passed": true
+        },
+        {
+          "check": "Field value: CdtTrfTxInf.Amt.InstdAmt.value = 100.00",
+          "passed": true
+        },
+        {
+          "check": "ISO 20022 XML structure",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc002-cbdc-pos",
+      "testName": "CBDC Point-of-Sale Payment",
+      "category": "semantic-mapping",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:06Z",
+      "duration": 85,
+      "score": 0.857,
+      "validations": [
+        {
+          "check": "Field presence: GrpHdr.MsgId",
+          "passed": true
+        },
+        {
+          "check": "Field presence: CdtTrfTxInf.Cdtr.Nm",
+          "passed": true
+        },
+        {
+          "check": "Field value: CdtTrfTxInf.Amt.InstdAmt.Ccy = EUR",
+          "passed": true
+        },
+        {
+          "check": "Field value: CdtTrfTxInf.Amt.InstdAmt.value = 25.50",
+          "passed": true
+        },
+        {
+          "check": "ISO 20022 XML structure",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        },
+        {
+          "check": "Field presence: DltAsset",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc003-merchant-settlement",
+      "testName": "Merchant Settlement Batch",
+      "category": "semantic-mapping",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:07Z",
+      "duration": 90,
+      "score": 0.875,
+      "validations": [
+        {
+          "check": "Field presence: GrpHdr.MsgId",
+          "passed": true
+        },
+        {
+          "check": "Field value: CdtTrfTxInf.Amt.InstdAmt.value = 1250.75",
+          "passed": true
+        },
+        {
+          "check": "ISO 20022 XML structure",
+          "passed": true
+        },
+        {
+          "check": "Field presence: BatchData",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc004-cross-border",
+      "testName": "Cross-Border FX Payment",
+      "category": "semantic-mapping",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:08Z",
+      "duration": 110,
+      "score": 0.857,
+      "validations": [
+        {
+          "check": "Field presence: GrpHdr.MsgId",
+          "passed": true
+        },
+        {
+          "check": "Field value: CdtTrfTxInf.Amt.InstdAmt.value = 1000.00",
+          "passed": true
+        },
+        {
+          "check": "ISO 20022 XML structure",
+          "passed": true
+        },
+        {
+          "check": "Field presence: FXData",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc101-kyc-verified",
+      "testName": "KYC Verification Compliance",
+      "category": "compliance-fields",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:10Z",
+      "duration": 75,
+      "score": 0.9,
+      "validations": [
+        {
+          "check": "Field presence: reportId",
+          "passed": true
+        },
+        {
+          "check": "Field presence: kycVerification",
+          "passed": true
+        },
+        {
+          "check": "Field value: vcAttached = true",
+          "passed": true
+        },
+        {
+          "check": "Field value: kycVerification.status = verified",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc102-aml-threshold",
+      "testName": "AML Threshold Check",
+      "category": "compliance-fields",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:11Z",
+      "duration": 80,
+      "score": 0.875,
+      "validations": [
+        {
+          "check": "Field presence: amlAssessment",
+          "passed": true
+        },
+        {
+          "check": "Field presence: riskScore",
+          "passed": true
+        },
+        {
+          "check": "Field value: amlAssessment.thresholdPassed = true",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc103-travel-rule",
+      "testName": "Travel Rule Compliance",
+      "category": "compliance-fields",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:12Z",
+      "duration": 95,
+      "score": 0.889,
+      "validations": [
+        {
+          "check": "Field presence: travelRule",
+          "passed": true
+        },
+        {
+          "check": "Field presence: originatorInfo",
+          "passed": true
+        },
+        {
+          "check": "Field value: travelRule.complianceStatus = pass",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc104-consent-proof",
+      "testName": "Consent Proof Verification",
+      "category": "compliance-fields",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:13Z",
+      "duration": 70,
+      "score": 0.9,
+      "validations": [
+        {
+          "check": "Field presence: consentProof",
+          "passed": true
+        },
+        {
+          "check": "Field presence: consentGiven",
+          "passed": true
+        },
+        {
+          "check": "Field value: consentProof.consentGiven = true",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc201-national-id",
+      "testName": "National ID Verifiable Credential",
+      "category": "vc-attributes",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:15Z",
+      "duration": 65,
+      "score": 0.917,
+      "validations": [
+        {
+          "check": "Field presence: @context",
+          "passed": true
+        },
+        {
+          "check": "Field presence: credentialSubject",
+          "passed": true
+        },
+        {
+          "check": "Field value: type[0] = VerifiableCredential",
+          "passed": true
+        },
+        {
+          "check": "Field value: type[1] = NationalIdentityCredential",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc202-selective-disclosure",
+      "testName": "Selective Disclosure VC",
+      "category": "vc-attributes",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:16Z",
+      "duration": 68,
+      "score": 0.889,
+      "validations": [
+        {
+          "check": "Field presence: @context",
+          "passed": true
+        },
+        {
+          "check": "Field presence: credentialSubject",
+          "passed": true
+        },
+        {
+          "check": "Field value: type[0] = VerifiableCredential",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc203-kyc-attribute-set",
+      "testName": "KYC Attribute Set VC",
+      "category": "vc-attributes",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:17Z",
+      "duration": 72,
+      "score": 0.9,
+      "validations": [
+        {
+          "check": "Field presence: @context",
+          "passed": true
+        },
+        {
+          "check": "Field presence: credentialSubject",
+          "passed": true
+        },
+        {
+          "check": "Field value: type[1] = KYCCredential",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "tc204-consent-attribute",
+      "testName": "Consent Attribute VC",
+      "category": "vc-attributes",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:18Z",
+      "duration": 70,
+      "score": 0.9,
+      "validations": [
+        {
+          "check": "Field presence: @context",
+          "passed": true
+        },
+        {
+          "check": "Field presence: credentialSubject",
+          "passed": true
+        },
+        {
+          "check": "Field value: type[1] = AccreditationCredential",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "e2e001-full-payment-flow",
+      "testName": "End-to-End Full Payment Flow",
+      "category": "integration",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:20Z",
+      "duration": 150,
+      "score": 0.857,
+      "validations": [
+        {
+          "check": "Field presence: did",
+          "passed": true
+        },
+        {
+          "check": "Field presence: vc",
+          "passed": true
+        },
+        {
+          "check": "Field presence: payment",
+          "passed": true
+        },
+        {
+          "check": "Field value: vcAttached = true",
+          "passed": true
+        },
+        {
+          "check": "Field value: payment.status = confirmed",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        },
+        {
+          "check": "ISO 20022 XML structure",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "testId": "e2e002-dispute-handling",
+      "testName": "End-to-End Dispute Handling Flow",
+      "category": "integration",
+      "status": "pass",
+      "timestamp": "2026-03-01T12:00:22Z",
+      "duration": 140,
+      "score": 0.889,
+      "validations": [
+        {
+          "check": "Field presence: payment",
+          "passed": true
+        },
+        {
+          "check": "Field presence: dispute",
+          "passed": true
+        },
+        {
+          "check": "Field presence: evidence",
+          "passed": true
+        },
+        {
+          "check": "Field value: dispute.status = open",
+          "passed": true
+        },
+        {
+          "check": "Field value: payment.status = confirmed",
+          "passed": true
+        },
+        {
+          "check": "VC structure validation",
+          "passed": true
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "summary": {
+    "total": 14,
+    "passed": 14,
+    "failed": 0,
+    "skipped": 0,
+    "passRate": 1.0,
+    "targetPassRate": 0.8,
+    "conformanceStatus": "passed",
+    "categoryBreakdown": {
+      "semantic-mapping": {
+        "total": 4,
+        "passed": 4,
+        "failed": 0,
+        "passRate": 1.0
+      },
+      "compliance-fields": {
+        "total": 4,
+        "passed": 4,
+        "failed": 0,
+        "passRate": 1.0
+      },
+      "vc-attributes": {
+        "total": 4,
+        "passed": 4,
+        "failed": 0,
+        "passRate": 1.0
+      },
+      "integration": {
+        "total": 2,
+        "passed": 2,
+        "failed": 0,
+        "passRate": 1.0
+      }
+    }
+  },
+  "metadata": {
+    "runnerVersion": "1.0.0",
+    "schemaVersion": "1.0.0",
+    "filter": null
+  }
+}

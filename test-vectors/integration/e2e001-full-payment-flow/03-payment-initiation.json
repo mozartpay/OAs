@@ -1,0 +1,16 @@
+{
+  "id": "e2e001-payment-001",
+  "from": "GDEMO_EVA0000000000000000000000000000000000000000000000001",
+  "to": "GDEMO_MERCHANT000000000000000000000000000000000000000000000001",
+  "amount": "500.0000000",
+  "asset": "USDC",
+  "rail": "direct",
+  "status": "confirmed",
+  "network": "stellar-testnet",
+  "memo": "E2E-TEST-001",
+  "fee": "0.00003 XLM",
+  "txHash": "E2E001A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5",
+  "ledgerSeq": 50123463,
+  "createdAt": "2026-03-01T09:00:00Z",
+  "confirmedAt": "2026-03-01T09:00:05Z"
+}
