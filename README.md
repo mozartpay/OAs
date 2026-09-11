@@ -1,4 +1,4 @@
-# MozartPay CLI — Orchestrated Agreements
+# Stellar Go CLI - MozartPay — Orchestrated Agreements (OAs)
 
 > **v0.1.0-mvp** · Built in Go · Pure-Go Soroban RPC · OG Technologies EU
 
