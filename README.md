@@ -232,4 +232,6 @@ State files stored in `~/.mozartpay/state/`.
 *Built by OG Technologies EU · Vienna, Austria*  
 *Web3 · Payments · Education · Standards*
 
+Licence: Apache 2.0
+
 
