@@ -23,7 +23,7 @@ vendor/
 dist/
 build/
 target/
-docs/
+/docs/
 
 # Rust
 Cargo.lock
