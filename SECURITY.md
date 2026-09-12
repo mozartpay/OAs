@@ -12,7 +12,7 @@
 If you discover a security vulnerability in MozartPay CLI, please report it responsibly:
 
 1. **Do not** open a public GitHub issue
-2. Email **security@ogtechnologies.eu** with a description of the vulnerability, reproduction steps, and potential impact
+2. Email **hi@ogtechnologies.co** with a description of the vulnerability, reproduction steps, and potential impact
 3. Include the relevant component (CLI, Soroban client, MCP server, WebAuthn server, Docker, k8s)
 4. You will receive an acknowledgment within 48 hours
 5. A fix or mitigation will be prioritized based on severity
