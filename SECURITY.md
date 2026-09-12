@@ -194,13 +194,23 @@ gosec scans for:
 
 ---
 
+## Data Protection & Privacy
+
+OG Technologies EU is based in Vienna, Austria. The CLI is self-hosted and sends no telemetry;
+operators are the controllers of any personal data they process. Because Stellar and Soroban
+ledgers are immutable, **never write raw PII on-chain** — store hashes or DIDs on-chain and
+keep personal data off-chain. Data subject requests and breach notifications:
+**hi@ogtechnologies.co** (GDPR Art. 33 — 72-hour authority notification).
+
+---
+
 ## Incident Response
 
 If a security incident occurs:
 
 1. **Assess** — Determine the scope and severity of the incident
 2. **Contain** — Rotate affected keys, revoke compromised credentials
-3. **Notify** — Email security@ogtechnologies.eu with incident details
+3. **Notify** — Email hi@ogtechnologies.co with incident details
 4. **Fix** — Patch the vulnerability and release a new version
 5. **Review** — Post-mortem analysis to prevent recurrence
 
