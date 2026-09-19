@@ -86,3 +86,6 @@ demo.mp4
 # Training data artifacts
 mozartpay/training-data-meta.json
 mozartpay/training-data.jsonl
+
+# ISO 20022 XSDs (download from iso20022.org — redistribution restricted)
+mozartpay/internal/iso20022/testdata/xsd/*.xsd
