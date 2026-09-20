@@ -201,16 +201,16 @@ func newReportISO20022Cmd(cfg *config.Config) *Command {
 			switch *msgType {
 			case "pacs.008":
 				xmlStr, err = svc.FormatISO20022XML(&report)
-				ui.SectionLabel("pacs.008.001.08")
+				ui.SectionLabel("pacs.008.001.14")
 			case "pacs.002":
 				xmlStr, err = svc.FormatPacs002(&report, iso20022.TransactionStatus(*status), *reasonCode)
-				ui.SectionLabel("pacs.002.001.12")
+				ui.SectionLabel("pacs.002.001.16")
 			case "pacs.004":
 				xmlStr, err = svc.FormatPacs004(&report, *reasonCode)
-				ui.SectionLabel("pacs.004.001.12")
+				ui.SectionLabel("pacs.004.001.15")
 			case "pacs.009":
 				xmlStr, err = svc.FormatPacs009(&report)
-				ui.SectionLabel("pacs.009.001.10")
+				ui.SectionLabel("pacs.009.001.13")
 			default:
 				ui.Error(fmt.Sprintf("unsupported message type: %s", *msgType))
 				return fmt.Errorf("unsupported message type: %s", *msgType)
