@@ -24,6 +24,7 @@ dist/
 build/
 target/
 /docs/
+messages/
 
 # Rust
 Cargo.lock
