@@ -1,3 +1,6 @@
+[workspace]
+members = ["did_registry"]
+
 [package]
 name = "mozartpay-contracts"
 version = "0.1.0"
@@ -11,13 +14,14 @@ path = "src/lib.rs"
 
 [dependencies]
 soroban-sdk = { version = "23.5" }
-stellar-access = "0.6"
-stellar-contract-utils = "0.6"
-stellar-macros = "0.6"
-stellar-tokens = "0.6"
+# NOTE: did-registry is NOT a [dependencies] entry — linking its rlib into the
+# wasm cdylib would collide on exported contract fns (pause/unpause/...). The
+# OA contract calls it via a hand-rolled try_invoke_contract client. It IS a
+# dev-dependency so tests can register the real contract natively.
 
 [dev-dependencies]
 soroban-sdk = { version = "23.5", features = ["testutils"] }
+did-registry = { path = "did_registry" }
 
 [profile.release]
 opt-level = "z"

@@ -1,0 +1,16 @@
+[package]
+name = "did-registry"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "did_registry"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+soroban-sdk = { version = "23.5" }
+
+[dev-dependencies]
+soroban-sdk = { version = "23.5", features = ["testutils"] }

@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"time"
@@ -36,6 +38,9 @@ func newReportGenerateCmd(cfg *config.Config) *Command {
 	vcAttach := fs.Bool("vc-attach", true, "Attach latest VC to the report")
 	output := fs.String("output", "pretty", "Output: pretty | json | iso20022")
 	txHash := fs.String("tx", "", "Filter by transaction hash (informational)")
+	anchor := fs.Bool("anchor", false, "Anchor the report hash on-chain via the OA contract")
+	agreementID := fs.String("agreement-id", "", "Agreement ID to anchor against (default: last created)")
+	isoRef := fs.String("iso-ref", "", "Optional ISO 20022 message reference to store on-chain")
 
 	return &Command{
 		Name:  "generate",
@@ -126,6 +131,27 @@ func newReportGenerateCmd(cfg *config.Config) *Command {
 			if *output == "pretty" {
 				ui.Info("Full report saved to ~/.mozartpay/state/report_latest.json")
 				ui.Info("Export as XML: mozartpay report iso20022")
+			}
+
+			// Optionally anchor the report hash on-chain
+			if *anchor {
+				if cfg.ContractID == "" {
+					ui.Warn("No OA contract configured — run 'contract set --id <id>'")
+					return nil
+				}
+				id := *agreementID
+				if id == "" {
+					id = cfg.LastAgreementID
+				}
+				if id == "" {
+					ui.Warn("No agreement ID — pass --agreement-id or create an agreement first")
+					return nil
+				}
+				data, _ := json.Marshal(report)
+				hash := sha256.Sum256(data)
+				if err := invokeAnchorReport(cfg, id, hash, *isoRef); err != nil {
+					ui.Warn(fmt.Sprintf("On-chain anchor failed: %v", err))
+				}
 			}
 
 			return nil

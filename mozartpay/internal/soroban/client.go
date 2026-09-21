@@ -169,7 +169,11 @@ func (c *Client) submitAndWait(ctx context.Context, tx *txnbuild.Transaction, kp
 		case "SUCCESS":
 			return txHash, getResp.ResultXDR, getResp.ResultMetaXDR, nil
 		case "FAILED":
-			return txHash, getResp.ResultXDR, getResp.ResultMetaXDR, fmt.Errorf("transaction failed on-chain")
+			txErr := TransactionResultError(getResp.ResultXDR)
+			if diag := DiagnosticErrorFromEventsXDR(getResp.DiagnosticEventsXDR); diag != "" {
+				txErr = fmt.Errorf("%w — %s", txErr, diag)
+			}
+			return txHash, getResp.ResultXDR, getResp.ResultMetaXDR, txErr
 		}
 
 		select {

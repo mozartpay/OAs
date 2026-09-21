@@ -3,12 +3,16 @@ package commands
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"math/big"
 	"os"
 	"time"
 
 	"github.com/ogtechnologies/mozartpay/internal/config"
+	"github.com/ogtechnologies/mozartpay/internal/did"
 	"github.com/ogtechnologies/mozartpay/internal/models"
 	"github.com/ogtechnologies/mozartpay/internal/soroban"
 	"github.com/ogtechnologies/mozartpay/internal/ui"
@@ -34,6 +38,8 @@ func newContractCmd(cfg *config.Config) *Command {
 	cmd.addSub(newContractExecuteCmd(cfg))
 	cmd.addSub(newContractSettleCmd(cfg))
 	cmd.addSub(newContractSetCmd(cfg))
+	cmd.addSub(newContractSetRegistryCmd(cfg))
+	cmd.addSub(newContractAnchorReportCmd(cfg))
 	cmd.Run = func(c *Command, args []string) error {
 		c.printHelp()
 		return nil
@@ -211,19 +217,31 @@ func newContractCreateAgreementCmd(cfg *config.Config) *Command {
 				return fmt.Errorf("failed to convert address: %w", err)
 			}
 
-			invArgs := []xdr.ScVal{
-				soroban.ScvAddress(initiatorAddr),
-				soroban.ScvU64(uint64(*disputeWindow)),
-			}
+			// create_agreement(initiator, counterparty: Option<Address>,
+			//                  expires_at: Option<u64>, dispute_window: u32)
+			var counterpartyArg, expiresArg xdr.ScVal
 			if *counterparty != "" {
 				cpAddr, err := soroban.AccountToScAddress(*counterparty)
 				if err != nil {
 					return fmt.Errorf("invalid counterparty address: %w", err)
 				}
-				invArgs = append(invArgs, soroban.ScvAddress(cpAddr))
+				v := soroban.ScvAddress(cpAddr)
+				counterpartyArg = soroban.ScvOption(&v)
+			} else {
+				counterpartyArg = soroban.ScvOption(nil)
 			}
 			if *expiresAt > 0 {
-				invArgs = append(invArgs, soroban.ScvU64(*expiresAt))
+				v := soroban.ScvU64(*expiresAt)
+				expiresArg = soroban.ScvOption(&v)
+			} else {
+				expiresArg = soroban.ScvOption(nil)
+			}
+
+			invArgs := []xdr.ScVal{
+				soroban.ScvAddress(initiatorAddr),
+				counterpartyArg,
+				expiresArg,
+				soroban.ScvU32(uint32(*disputeWindow)),
 			}
 
 			ui.SectionLabel("Submitting transaction...")
@@ -241,7 +259,24 @@ func newContractCreateAgreementCmd(cfg *config.Config) *Command {
 			}
 
 			ui.Success(fmt.Sprintf("Agreement created. TX: %s", result.TxHash))
-			ui.Info(fmt.Sprintf("Result: %s", result.ResultXDR))
+
+			// Decode the returned agreement ID (BytesN<32>) and persist it.
+			// The contract return value lives in ResultMetaXDR, not ResultXDR.
+			if retVal, rerr := soroban.ReturnValueFromMetaXDR(result.ResultMetaXDR); rerr == nil {
+				if b, berr := soroban.DecodeScBytesN32(retVal); berr == nil {
+					idHex := hex.EncodeToString(b[:])
+					ui.Info(fmt.Sprintf("Agreement ID: %s", idHex))
+					cfg.LastAgreementID = idHex
+					cfg.AgreementIDs = append(cfg.AgreementIDs, idHex)
+					if err := config.Save(cfg); err != nil {
+						ui.Warn("Failed to save agreement ID to config")
+					}
+				} else {
+					ui.Warn(fmt.Sprintf("Could not decode agreement ID: %v", berr))
+				}
+			} else {
+				ui.Warn(fmt.Sprintf("Could not decode agreement ID: %v", rerr))
+			}
 			ui.Info(fmt.Sprintf("Explorer: https://stellar.expert/explorer/testnet/contract/%s", cfg.ContractID))
 
 			return nil
@@ -287,8 +322,14 @@ func newContractShowCmd(cfg *config.Config) *Command {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
+			idBytes, err := soroban.ParseBytesN32Hex(id)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Invalid agreement ID (expected 64-char hex): %v", err))
+				return err
+			}
+
 			result, err := client.SimulateOnly(ctx, cfg.ContractID, "get_agreement", []xdr.ScVal{
-				soroban.ScvString(id),
+				soroban.ScvBytesN32(idBytes),
 			})
 			if err != nil {
 				ui.Error(fmt.Sprintf("Query failed: %v", err))
@@ -361,10 +402,12 @@ func newContractListCmd(cfg *config.Config) *Command {
 
 func newContractAttestIdentityCmd(cfg *config.Config) *Command {
 	fs := flag.NewFlagSet("attest-identity", flag.ContinueOnError)
-	agreementID := fs.String("id", "", "Agreement ID")
-	did := fs.String("did", "", "Decentralized Identifier (e.g., did:web:example.com)")
-	method := fs.String("method", "web", "DID method: web | key | ethr | ebsi")
+	agreementID := fs.String("id", "", "Agreement ID (hex)")
+	didFlag := fs.String("did", "", "Decentralized Identifier (default: active DID)")
+	method := fs.String("method", "", "DID method: web | key | ethr | ebsi | soroban (default: inferred from DID)")
 	vcType := fs.String("vc-type", "national_id", "Type of verifiable credential")
+	vcHashFlag := fs.String("vc-hash", "", "Hex VC hash to use as attestation hash (default: hash of saved vc_latest, else generated)")
+	verifier := fs.String("verifier", "", "Optional on-chain verifier contract ID (C...)")
 
 	return &Command{
 		Name:  "attest-identity",
@@ -385,9 +428,67 @@ func newContractAttestIdentityCmd(cfg *config.Config) *Command {
 				return fmt.Errorf("agreement ID required")
 			}
 
-			if *did == "" {
-				ui.Error("DID required (--did)")
+			idBytes, err := soroban.ParseBytesN32Hex(id)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Invalid agreement ID (expected 64-char hex): %v", err))
+				return err
+			}
+
+			didStr := *didFlag
+			if didStr == "" {
+				didStr = cfg.ActiveDID
+			}
+			if didStr == "" {
+				ui.Error("DID required (--did or set an active DID via 'did create')")
 				return fmt.Errorf("DID required")
+			}
+
+			// Attestation hash: explicit --vc-hash, else hash of saved VC, else generated
+			var attestationHash [32]byte
+			switch {
+			case *vcHashFlag != "":
+				attestationHash, err = soroban.ParseBytesN32Hex(*vcHashFlag)
+				if err != nil {
+					ui.Error(fmt.Sprintf("Invalid --vc-hash: %v", err))
+					return err
+				}
+			default:
+				var vc models.VerifiableCredential
+				if lerr := config.LoadState("vc_latest", &vc); lerr == nil {
+					attestationHash, err = did.VCHash(&vc)
+					if err != nil {
+						return fmt.Errorf("hash VC: %w", err)
+					}
+					ui.Info("Using VC hash from saved credential as attestation hash")
+				} else {
+					attestationHash, err = soroban.ParseBytesN32Hex(generateHash(id + didStr + time.Now().String()))
+					if err != nil {
+						return fmt.Errorf("generate attestation hash: %w", err)
+					}
+				}
+			}
+
+			// DID method enum: explicit flag or inferred from the DID prefix
+			methodVariant := *method
+			if methodVariant == "" {
+				methodVariant = didMethodFromDID(didStr)
+			}
+			methodScv, err := didMethodEnumScVal(methodVariant)
+			if err != nil {
+				ui.Error(err.Error())
+				return err
+			}
+
+			var verifierArg xdr.ScVal
+			if *verifier != "" {
+				vAddr, verr := soroban.ParseContractID(*verifier)
+				if verr != nil {
+					return fmt.Errorf("invalid verifier contract ID: %w", verr)
+				}
+				v := soroban.ScvAddress(vAddr)
+				verifierArg = soroban.ScvOption(&v)
+			} else {
+				verifierArg = soroban.ScvOption(nil)
 			}
 
 			kp, net, _, err := getKeypairAndNetwork(cfg)
@@ -396,15 +497,18 @@ func newContractAttestIdentityCmd(cfg *config.Config) *Command {
 			}
 
 			ui.Header("Attest Identity")
-
-			attestationHash := generateHash(id + *did + time.Now().String())
+			ui.KV("Agreement", id)
+			ui.KV("DID", didStr)
+			ui.KV("Method", methodVariant)
+			ui.KV("Attestation Hash", hex.EncodeToString(attestationHash[:]))
 
 			invArgs := []xdr.ScVal{
-				soroban.ScvString(id),
-				soroban.ScvString(*did),
-				soroban.ScvString(*method),
-				soroban.ScvString(*vcType),
-				soroban.ScvBytes([]byte(attestationHash)),
+				soroban.ScvBytesN32(idBytes),
+				soroban.ScvString(didStr),
+				methodScv,
+				soroban.ScvSymbol(*vcType),
+				soroban.ScvBytesN32(attestationHash),
+				verifierArg,
 			}
 
 			ui.SectionLabel("Submitting transaction...")
@@ -462,15 +566,21 @@ func newContractConnectWalletCmd(cfg *config.Config) *Command {
 
 			ui.Header("Connect Wallet")
 
+			idBytes, err := soroban.ParseBytesN32Hex(id)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Invalid agreement ID (expected 64-char hex): %v", err))
+				return err
+			}
+
 			stellarAddr, err := soroban.AccountToScAddress(account.Address)
 			if err != nil {
 				return fmt.Errorf("failed to convert address: %w", err)
 			}
 
 			invArgs := []xdr.ScVal{
-				soroban.ScvString(id),
+				soroban.ScvBytesN32(idBytes),
 				soroban.ScvAddress(stellarAddr),
-				soroban.ScvString(*walletType),
+				soroban.ScvSymbol(*walletType),
 				soroban.ScvBool(*passkey),
 				soroban.ScvU32(1),
 			}
@@ -529,14 +639,32 @@ func newContractFundAssetCmd(cfg *config.Config) *Command {
 				return err
 			}
 
+			idBytes, err := soroban.ParseBytesN32Hex(id)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Invalid agreement ID (expected 64-char hex): %v", err))
+				return err
+			}
+
+			amountI, ok := new(big.Int).SetString(*amount, 10)
+			if !ok {
+				ui.Error(fmt.Sprintf("Invalid amount: %s", *amount))
+				return fmt.Errorf("invalid amount")
+			}
+			lockedI, ok := new(big.Int).SetString(*locked, 10)
+			if !ok {
+				ui.Error(fmt.Sprintf("Invalid locked amount: %s", *locked))
+				return fmt.Errorf("invalid locked amount")
+			}
+
 			ui.Header("Fund Asset")
 
 			invArgs := []xdr.ScVal{
-				soroban.ScvString(id),
-				soroban.ScvString(*assetCode),
-				soroban.ScvString(*amount),
-				soroban.ScvString(*locked),
-				soroban.ScvString("fungible"),
+				soroban.ScvBytesN32(idBytes),
+				soroban.ScvSymbol(*assetCode),
+				soroban.ScvI128(amountI),
+				soroban.ScvI128(lockedI),
+				soroban.ScvSymbol("fungible"),
+				soroban.ScvOption(nil), // contract_id: Option<BytesN<32>>
 			}
 
 			ui.SectionLabel("Submitting transaction...")
@@ -586,9 +714,20 @@ func newContractExecuteCmd(cfg *config.Config) *Command {
 				return fmt.Errorf("agreement ID required")
 			}
 
+			idBytes, err := soroban.ParseBytesN32Hex(id)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Invalid agreement ID (expected 64-char hex): %v", err))
+				return err
+			}
+
 			finalTxHash := *txHash
 			if finalTxHash == "" {
 				finalTxHash = generateHash(id + time.Now().String())
+			}
+			txHashBytes, err := soroban.ParseBytesN32Hex(finalTxHash)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Invalid tx hash (expected 64-char hex): %v", err))
+				return err
 			}
 
 			kp, net, _, err := getKeypairAndNetwork(cfg)
@@ -599,8 +738,8 @@ func newContractExecuteCmd(cfg *config.Config) *Command {
 			ui.Header("Execute Agreement")
 
 			invArgs := []xdr.ScVal{
-				soroban.ScvString(id),
-				soroban.ScvBytes([]byte(finalTxHash)),
+				soroban.ScvBytesN32(idBytes),
+				soroban.ScvBytesN32(txHashBytes),
 			}
 
 			ui.SectionLabel("Submitting transaction...")
@@ -654,10 +793,16 @@ func newContractSettleCmd(cfg *config.Config) *Command {
 				return err
 			}
 
+			idBytes, err := soroban.ParseBytesN32Hex(id)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Invalid agreement ID (expected 64-char hex): %v", err))
+				return err
+			}
+
 			ui.Header("Settle Agreement")
 
 			invArgs := []xdr.ScVal{
-				soroban.ScvString(id),
+				soroban.ScvBytesN32(idBytes),
 			}
 
 			ui.SectionLabel("Submitting transaction...")
@@ -681,7 +826,199 @@ func newContractSettleCmd(cfg *config.Config) *Command {
 	}
 }
 
+// ─── contract set-registry ───────────────────────────
+
+func newContractSetRegistryCmd(cfg *config.Config) *Command {
+	fs := flag.NewFlagSet("set-registry", flag.ContinueOnError)
+	registryID := fs.String("id", "", "DID registry contract ID (C...) — default: did set-registry value")
+
+	return &Command{
+		Name:  "set-registry",
+		Short: "Configure the DID registry on the OA contract (enables compliance gating)",
+		Flags: fs,
+		Run: func(c *Command, args []string) error {
+			if cfg.ContractID == "" {
+				ui.Error("No contract ID configured")
+				return fmt.Errorf("contract ID not set")
+			}
+
+			regID := *registryID
+			if regID == "" {
+				regID = cfg.DIDRegistryContractID
+			}
+			if regID == "" {
+				ui.Error("Registry contract ID required (--id or 'did set-registry')")
+				return fmt.Errorf("registry contract ID required")
+			}
+
+			regAddr, err := soroban.ParseContractID(regID)
+			if err != nil {
+				return fmt.Errorf("invalid registry contract ID: %w", err)
+			}
+
+			kp, net, _, err := getKeypairAndNetwork(cfg)
+			if err != nil {
+				return err
+			}
+
+			ui.Header("Set DID Registry on OA Contract")
+			ui.KV("OA Contract", cfg.ContractID)
+			ui.KV("Registry", regID)
+
+			client := soroban.NewClientForNetwork(net)
+			defer client.Close()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+
+			ui.SectionLabel("Submitting transaction...")
+			result, err := client.Invoke(ctx, kp, cfg.ContractID, "set_did_registry", []xdr.ScVal{
+				soroban.ScvAddress(regAddr),
+			})
+			if err != nil {
+				ui.Error(fmt.Sprintf("Transaction failed: %v", err))
+				return fmt.Errorf("invoke failed: %w", err)
+			}
+
+			ui.Success("DID registry configured on OA contract")
+			ui.Info(fmt.Sprintf("TX: %s", result.TxHash))
+			ui.Info("Compliance gating is now active for attest/execute/settle")
+			return nil
+		},
+	}
+}
+
+// ─── contract anchor-report ───────────────────────────
+
+func newContractAnchorReportCmd(cfg *config.Config) *Command {
+	fs := flag.NewFlagSet("anchor-report", flag.ContinueOnError)
+	agreementID := fs.String("id", "", "Agreement ID (hex, default: last created)")
+	reportHash := fs.String("report-hash", "", "Hex SHA-256 of the compliance report (default: hash of saved report_latest)")
+	isoRef := fs.String("iso-ref", "", "Optional ISO 20022 message reference")
+
+	return &Command{
+		Name:  "anchor-report",
+		Short: "Anchor a compliance report hash on-chain (Reporting layer)",
+		Flags: fs,
+		Run: func(c *Command, args []string) error {
+			if cfg.ContractID == "" {
+				ui.Error("No contract ID configured")
+				return fmt.Errorf("contract ID not set")
+			}
+
+			id := *agreementID
+			if id == "" {
+				id = cfg.LastAgreementID
+			}
+			if id == "" {
+				ui.Error("No agreement ID provided")
+				return fmt.Errorf("agreement ID required")
+			}
+
+			var hash [32]byte
+			var err error
+			if *reportHash != "" {
+				hash, err = soroban.ParseBytesN32Hex(*reportHash)
+				if err != nil {
+					ui.Error(fmt.Sprintf("Invalid --report-hash: %v", err))
+					return err
+				}
+			} else {
+				var report models.TransactionReport
+				if lerr := config.LoadState("report_latest", &report); lerr != nil {
+					ui.Error("No --report-hash and no saved report. Run 'report generate' first.")
+					return fmt.Errorf("no report: %w", lerr)
+				}
+				data, _ := json.Marshal(report)
+				hash = sha256.Sum256(data)
+				ui.Info("Using SHA-256 of saved report_latest")
+			}
+
+			return invokeAnchorReport(cfg, id, hash, *isoRef)
+		},
+	}
+}
+
+// invokeAnchorReport submits anchor_report to the OA contract. Shared by
+// 'contract anchor-report' and 'report generate --anchor'.
+func invokeAnchorReport(cfg *config.Config, agreementID string, hash [32]byte, isoRef string) error {
+	idBytes, err := soroban.ParseBytesN32Hex(agreementID)
+	if err != nil {
+		ui.Error(fmt.Sprintf("Invalid agreement ID (expected 64-char hex): %v", err))
+		return err
+	}
+
+	var isoArg xdr.ScVal
+	if isoRef != "" {
+		v := soroban.ScvString(isoRef)
+		isoArg = soroban.ScvOption(&v)
+	} else {
+		isoArg = soroban.ScvOption(nil)
+	}
+
+	kp, net, _, err := getKeypairAndNetwork(cfg)
+	if err != nil {
+		return err
+	}
+
+	ui.Header("Anchor Report On-Chain")
+	ui.KV("Agreement", agreementID)
+	ui.KV("Report Hash", hex.EncodeToString(hash[:]))
+
+	client := soroban.NewClientForNetwork(net)
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	ui.SectionLabel("Submitting transaction...")
+	result, err := client.Invoke(ctx, kp, cfg.ContractID, "anchor_report", []xdr.ScVal{
+		soroban.ScvBytesN32(idBytes),
+		soroban.ScvBytesN32(hash),
+		isoArg,
+	})
+	if err != nil {
+		ui.Error(fmt.Sprintf("Transaction failed: %v", err))
+		return fmt.Errorf("invoke failed: %w", err)
+	}
+
+	ui.Success("Report anchored on-chain")
+	ui.Info(fmt.Sprintf("TX: %s", result.TxHash))
+	return nil
+}
+
 // ─── Helpers ───────────────────────────
+
+// didMethodFromDID infers the DID method variant from a DID string prefix.
+func didMethodFromDID(didStr string) string {
+	for _, m := range []string{"web", "key", "ethr", "ebsi", "soroban"} {
+		if len(didStr) > len(m)+4 && didStr[:len(m)+4] == "did:"+m+":" {
+			return m
+		}
+	}
+	return "key"
+}
+
+// didMethodEnumScVal encodes a DID method name as the contract's DIDMethod
+// enum (unit enum → Vec[Symbol(variant)]).
+func didMethodEnumScVal(method string) (xdr.ScVal, error) {
+	variant := ""
+	switch method {
+	case "web":
+		variant = "Web"
+	case "key":
+		variant = "Key"
+	case "ethr":
+		variant = "Ethr"
+	case "ebsi":
+		variant = "Ebsi"
+	case "soroban":
+		variant = "Soroban"
+	default:
+		return xdr.ScVal{}, fmt.Errorf("unknown DID method %q (web|key|ethr|ebsi|soroban)", method)
+	}
+	return soroban.ScvVec([]xdr.ScVal{soroban.ScvSymbol(variant)}), nil
+}
 
 func getKeypairAndNetwork(cfg *config.Config) (*keypair.Full, string, *models.Account, error) {
 	svc := wallet.NewService()

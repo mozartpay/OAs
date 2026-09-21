@@ -1,6 +1,6 @@
 # Stellar Go CLI - MozartPay — Orchestrated Agreements (OAs)
 
-> **v0.1.0-mvp** · Built in Go · Pure-Go Soroban RPC · OG Technologies EU
+> **v0.2.0** · Built in Go · Pure-Go Soroban RPC · OG Technologies EU
 
 A command-line interface for the MozartPay Orchestrated Agreements platform — enabling
 DID-attested, VC-linked payments and asset issuance on Stellar with OA scoring,
@@ -110,6 +110,12 @@ Gray components are core CLI modules and local state owned by MozartPay itself.
 - **WebAuthn/FIDO2** — Passkey-based authentication server
 - **Compliance Reporting** — VC-linked audit trails, ISO 20022 pacs.008 XML export
 - **Integrations** — OA Score, StellarCarbon, x402, Tempo FX
+- **VC API Server** — W3C VC API-compliant HTTP endpoints for conformance testing
+- **Tansu Integration** — Query project governance, proposals, and attestations on Stellar
+- **Triangular Arbitrage** — Scan, monitor, and backtest 3-leg arbitrage cycles
+- **AI Fine-Tuning** — Generate training data and fine-tune local GGUF models for chat
+- **ZK Proofs** — Noir-based zero-knowledge proof generation and verification
+- **Market Data** — Finnhub and Alpha Vantage integrations for quotes and news
 
 ## Requirements
 
@@ -204,6 +210,9 @@ make demo-full
 | `mozartpay asset score` | Attach OA score |
 | `mozartpay asset carbon` | Attach StellarCarbon credits |
 | `mozartpay claimable` | Claimable balance operations |
+| `mozartpay swap triangular scan` | Scan 3-leg arbitrage cycles |
+| `mozartpay swap triangular monitor` | Continuous arbitrage monitoring |
+| `mozartpay swap triangular backtest` | Backtest arbitrage strategies |
 
 ### Exchanges
 
@@ -234,6 +243,9 @@ make demo-full
 | `mozartpay integrations ping` | Health-check integrations |
 | `mozartpay integrations score` | Add an OA score to latest asset |
 | `mozartpay integrations carbon` | StellarCarbon management |
+| `mozartpay integrations tansu` | Query Tansu governance (projects, proposals, badges) |
+| `mozartpay integrations news` | Market news feed |
+| `mozartpay integrations finnhub` | Finnhub market data |
 
 ### Reporting
 
@@ -248,6 +260,9 @@ make demo-full
 |---------|-------------|
 | `mozartpay mcp` | Start MCP server for AI assistant integration (stdio/SSE) |
 | `mozartpay chat` | AI chat interface |
+| `mozartpay chat train-data` | Generate synthetic fine-tuning data |
+| `mozartpay chat finetune` | Fine-tune local chat model |
+| `mozartpay chat model` | Manage GGUF models |
 | `mozartpay terminal` | Interactive terminal mode |
 
 ### System
@@ -258,6 +273,7 @@ make demo-full
 | `mozartpay status` | Session and system status |
 | `mozartpay flow` | Print component flow diagram |
 | `mozartpay network` | Network management |
+| `mozartpay vc-api` | W3C VC API server (issue/verify endpoints) |
 | `mozartpay version` | Print version |
 
 ## Soroban Contract Deployment
@@ -404,6 +420,7 @@ Conformance test vectors are in `test-vectors/` at the repo root. See `test-vect
 
 ## Additional Documentation
 
+- `CHANGELOG.md` — Release history (Keep a Changelog + SemVer)
 - `mozartpay/AGENTS.md` — AI coding guidelines and MCP server integration docs
 - `mozartpay/SECURITY.md` — Comprehensive security policy
 - `mozartpay/docs/` — Additional docs (MCP, k8s, chat, passkey, wwallet)
@@ -415,7 +432,7 @@ Conformance test vectors are in `test-vectors/` at the repo root. See `test-vect
 - **W3C Verifiable Credentials** — VC Data Model 2.0
 - **EBSI v3** — EU Blockchain Services Infrastructure
 - **SEP-41** — Stellar Token Interface
-- **ISO 20022** — Financial messaging (pacs.008.001.08)
+- **ISO 20022** — Financial messaging (pacs.002, pacs.004, pacs.008, pacs.009)
 - **eIDAS 2.0** — EU Digital Identity Framework
 - **HTTP 402 / x402** — Pay-per-use web protocol
 
@@ -437,6 +454,7 @@ Key config fields:
 - Run `make security` for security scanning
 - Test on testnet before mainnet
 - No shell-out to stellar CLI — use pure-Go Soroban client
+- Add user-facing changes to `CHANGELOG.md` under `[Unreleased]`
 
 ---
 

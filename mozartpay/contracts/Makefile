@@ -9,27 +9,30 @@ all: check build
 # Check Rust toolchain and dependencies
 check:
 	@echo "Checking Rust toolchain..."
-	@rustup target list --installed | grep -q wasm32-unknown-unknown || (echo "Installing wasm32 target..." && rustup target add wasm32-unknown-unknown)
+	@rustup target list --installed | grep -q wasm32v1-none || (echo "Installing wasm32v1-none target..." && rustup target add wasm32v1-none)
 	@echo "Toolchain ready ✓"
 
 # Build all contracts to WASM
 build:
 	@echo "Building contracts to WASM..."
-	@cargo build --release --target wasm32-unknown-unknown
+	@# did-registry must build first: mozartpay-contracts imports its spec via
+	@# contractimport!(file = "dist/did_registry.wasm"), which reads the file
+	@# at macro-expansion time.
+	@cargo build -p did-registry --release --target wasm32v1-none
+	@mkdir -p dist
+	@cp target/wasm32v1-none/release/did_registry.wasm dist/
+	@cargo build -p mozartpay-contracts --release --target wasm32v1-none
+	@cp target/wasm32v1-none/release/*.wasm dist/ 2>/dev/null || true
 	@echo ""
 	@echo "Build complete! WASM files:"
-	@ls -la target/wasm32-unknown-unknown/release/*.wasm 2>/dev/null || echo "No WASM files found"
-	@mkdir -p dist
-	@cp target/wasm32-unknown-unknown/release/*.wasm dist/ 2>/dev/null || true
-	@echo ""
-	@echo "WASM files copied to dist/"
+	@ls -la dist/*.wasm 2>/dev/null || echo "No WASM files found"
 
 # Build individual contracts
-zk-verifier:
-	@cargo build --bin zk_verifier --release --target wasm32-unknown-unknown
-
 orchestrated-agreement:
-	@cargo build --bin orchestrated_agreement --release --target wasm32-unknown-unknown
+	@cargo build -p mozartpay-contracts --release --target wasm32v1-none
+
+did-registry:
+	@cargo build -p did-registry --release --target wasm32v1-none
 
 # Clean build artifacts
 clean:
@@ -39,7 +42,7 @@ clean:
 
 # Run contract tests
 test:
-	@cargo test --lib
+	@cargo test --workspace --lib
 
 # Format code
 fmt:
@@ -47,7 +50,7 @@ fmt:
 
 # Check code without building
 check-only:
-	@cargo check --target wasm32-unknown-unknown
+	@cargo check --target wasm32v1-none
 
 # Show contract sizes (for optimization review)
 sizes: build
@@ -66,19 +69,20 @@ deploy-info:
 	@echo "2. Configure testnet:"
 	@echo "   stellar network add testnet --rpc-url https://soroban-testnet.stellar.org --network-passphrase 'Test SDF Network ; September 2015'"
 	@echo ""
-	@echo "3. Deploy ZK Verifier:"
-	@echo "   stellar contract deploy --wasm dist/zk_verifier.wasm --source <YOUR_KEY> --network testnet"
+	@echo "3. Deploy Orchestrated Agreement:"
+	@echo "   mozartpay contract deploy --wasm dist/mozartpay_contracts.wasm --network stellar-testnet"
 	@echo ""
-	@echo "4. Deploy Orchestrated Agreement:"
-	@echo "   stellar contract deploy --wasm dist/orchestrated_agreement.wasm --source <YOUR_KEY> --network testnet"
+	@echo "4. Deploy DID Registry:"
+	@echo "   mozartpay contract deploy --wasm dist/did_registry.wasm --network stellar-testnet"
+	@echo "   mozartpay did set-registry --id <contract-id>"
 	@echo ""
 
 # Help
 help:
 	@echo "Available targets:"
 	@echo "  make build       - Build all contracts to WASM"
-	@echo "  make zk-verifier - Build only ZK verifier contract"
 	@echo "  make orchestrated-agreement - Build only OA contract"
+	@echo "  make did-registry - Build only DID registry contract"
 	@echo "  make clean       - Clean build artifacts"
 	@echo "  make test        - Run contract tests"
 	@echo "  make sizes       - Show optimized WASM sizes"

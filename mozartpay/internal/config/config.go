@@ -12,23 +12,24 @@ import (
 const (
 	DefaultConfigDir   = ".mozartpay"
 	DefaultConfigFile  = "config.json"
-	Version            = "0.1.0-mvp"
+	Version            = "0.2.0"
 	AppName            = "MozartPay CLI"
 	DefaultHTTPTimeout = 30 * time.Second
 )
 
 type Config struct {
-	Network         string            `json:"network"`
-	WalletType      string            `json:"walletType"`
-	DIDMethod       string            `json:"didMethod"`
-	ActiveDID       string            `json:"activeDid,omitempty"`
-	ActiveAddress   string            `json:"activeAddress,omitempty"`
-	ContractID      string            `json:"contractID,omitempty"`
-	AgreementIDs    []string          `json:"agreementIDs,omitempty"`
-	LastAgreementID string            `json:"lastAgreementID,omitempty"`
-	Integrations    IntegrationConfig `json:"integrations"`
-	Debug           bool              `json:"debug"`
-	LLM             LLMConfig         `json:"llm,omitempty"`
+	Network               string            `json:"network"`
+	WalletType            string            `json:"walletType"`
+	DIDMethod             string            `json:"didMethod"`
+	ActiveDID             string            `json:"activeDid,omitempty"`
+	ActiveAddress         string            `json:"activeAddress,omitempty"`
+	ContractID            string            `json:"contractID,omitempty"`
+	DIDRegistryContractID string            `json:"didRegistryContractId,omitempty"`
+	AgreementIDs          []string          `json:"agreementIDs,omitempty"`
+	LastAgreementID       string            `json:"lastAgreementID,omitempty"`
+	Integrations          IntegrationConfig `json:"integrations"`
+	Debug                 bool              `json:"debug"`
+	LLM                   LLMConfig         `json:"llm,omitempty"`
 }
 
 type IntegrationConfig struct {

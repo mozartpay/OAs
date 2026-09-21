@@ -1,6 +1,8 @@
-# AGENTS.md — MozartPay CLI
+# AGENTS.md — MozartPay
 
 Guidelines for AI coding agents and documentation of the built-in MCP server for AI assistant integration.
+
+This repository contains the MozartPay CLI (`mozartpay/`) and a conformance test vector suite (`test-vectors/`). Unless noted otherwise, paths below are relative to `mozartpay/`.
 
 ---
 
@@ -35,7 +37,7 @@ go mod tidy             # Tidy modules
 | `internal/soroban/` | Pure-Go Soroban RPC client (deploy, invoke, simulate) |
 | `internal/mcp/` | MCP server, tools, handlers, and skills |
 | `internal/wallet/` | Wallet management (Stellar, wwWallet, EOA) |
-| `internal/did/` | DID creation and VC attestation |
+| `internal/did/` | DID creation, VC attestation, on-chain registry client (`registry.go`) |
 | `internal/models/` | Data models (Account, Config, etc.) |
 | `internal/config/` | Config load/save (`~/.mozartpay/config.json`) |
 | `internal/ui/` | Terminal UI helpers (colors, formatting) |
@@ -45,12 +47,14 @@ go mod tidy             # Tidy modules
 | `internal/reporting/` | Compliance reports, ISO 20022 pacs.008 |
 | `internal/chat/` | AI chat interface |
 | `internal/contracts/` | Contract management helpers |
-| `contracts/` | Soroban smart contracts in Rust |
-| `contracts/src/` | Rust contract source code |
+| `contracts/` | Soroban smart contracts in Rust (Cargo workspace) |
+| `contracts/src/` | Orchestrated Agreement contract source |
+| `contracts/did_registry/` | DID Registry contract (workspace member) |
 | `contracts/dist/` | Compiled `.wasm` binaries |
 | `k8s/` | Kubernetes deployment manifests |
 | `Dockerfile` | Multi-service Docker builds (CLI, MCP, WebAuthn) |
 | `docker-compose.yml` | Docker Compose orchestration |
+| `test-vectors/` (repo root) | Conformance test vectors — ISO 20022, W3C VC, EBSI validation of CLI outputs (`cd test-vectors && make test`) |
 
 ---
 
@@ -75,7 +79,8 @@ All CLI commands follow the `Command` struct pattern defined in `cmd/mozartpay/c
 
 - All Soroban RPC interactions use the pure-Go client in `internal/soroban/`
 - **No shell-out to the stellar CLI** — everything is done via the Stellar Go SDK and Soroban RPC
-- `xdr.ScVal` construction uses helper functions in `internal/soroban/helpers.go` (`ScvString`, `ScvSymbol`, `ScvBytes`, `ScvBool`, `ScvU32`, `ScvU64`, `ScvI32`, `ScvI64`, `ScvAddress`)
+- `xdr.ScVal` construction uses helper functions in `internal/soroban/helpers.go` (`ScvString`, `ScvSymbol`, `ScvBytes`, `ScvBool`, `ScvU32`, `ScvU64`, `ScvI32`, `ScvI64`, `ScvI128`, `ScvAddress`, `ScvVec`, `ScvMap`, `ScvOption`, `ScvBytesN32`, `ScvVoid`)
+- `xdr.ScVal` decoding uses the `DecodeSc*` helpers in the same file (`DecodeScMap`, `DecodeScVec`, `DecodeScString`, `DecodeScAddress`, `DecodeScU64`, `DecodeScBool`, `DecodeScBytesN32`, `DecodeScOption`)
 - Contract deployment uses `HostFunctionTypeCreateContractV2` when constructor args are needed
 - WASM hash and contract ID are extracted from `SimulateTransactionResponse.Results[0].ReturnValueXDR`
 - Read-only queries use `SimulateOnly()` (no transaction submission, uses a dummy keypair)
@@ -87,6 +92,7 @@ All CLI commands follow the `Command` struct pattern defined in `cmd/mozartpay/c
 - State files in `~/.mozartpay/state/`
 - Active wallet's `PrivateKey` (Stellar seed `S...`) is used with `keypair.ParseFull()` for signing
 - `cfg.ContractID` stores the last deployed contract ID
+- `cfg.DIDRegistryContractID` stores the deployed DID registry contract ID (set via `mozartpay did set-registry`)
 - `cfg.LastAgreementID` stores the most recent agreement ID
 
 ### Linting & Code Style
@@ -171,6 +177,10 @@ mozartpay contract show --id <agreement-id>
 
 # Invoke a write method (submits transaction)
 mozartpay contract create-agreement --dispute-window 86400
+
+# Deploy the DID registry and link it
+mozartpay contract deploy --wasm contracts/dist/did_registry.wasm --network stellar-testnet
+mozartpay did set-registry --id <contract-id>
 ```
 
 ### Testnet Details
@@ -184,11 +194,12 @@ mozartpay contract create-agreement --dispute-window 86400
 
 ## Smart Contracts
 
-The Soroban smart contracts are written in Rust and located in `contracts/`.
+The Soroban smart contracts are written in Rust and located in `contracts/` (a Cargo workspace).
 
-- **Source**: `contracts/src/lib.rs`, `contracts/src/orchestrated_agreement.rs`
+- **Source**: `contracts/src/lib.rs`, `contracts/src/orchestrated_agreement.rs` (Orchestrated Agreement); `contracts/did_registry/src/lib.rs` (DID Registry)
 - **Architecture**: See `contracts/ARCHITECTURE.md` for the full security architecture
-- **Build**: `cd contracts && make build` (produces `contracts/dist/*.wasm`)
+- **Build**: `cd contracts && make build` — builds `did-registry` first, then `mozartpay-contracts`, targeting `wasm32v1-none` (produces `contracts/dist/*.wasm`)
+- **Cross-contract calls**: The OA contract calls the DID registry via a hand-rolled `try_invoke_contract` client — `contractimport!` is not used, and `did-registry` is a dev-dependency only (linking its rlib into the wasm cdylib would collide on exported contract fns)
 - **Contract ID Preimage**: Uses `ContractIdPreimageFromAddress` with a random salt
 - **Constructor**: The MozartPay contract's `__constructor(owner: Address)` requires an owner address argument
 

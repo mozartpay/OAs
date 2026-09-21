@@ -9,10 +9,11 @@ import "time"
 type DIDMethod string
 
 const (
-	DIDMethodWeb  DIDMethod = "web"
-	DIDMethodKey  DIDMethod = "key"
-	DIDMethodEthr DIDMethod = "ethr"
-	DIDMethodEBSI DIDMethod = "ebsi"
+	DIDMethodWeb     DIDMethod = "web"
+	DIDMethodKey     DIDMethod = "key"
+	DIDMethodEthr    DIDMethod = "ethr"
+	DIDMethodEBSI    DIDMethod = "ebsi"
+	DIDMethodSoroban DIDMethod = "soroban"
 )
 
 type DIDDocument struct {
@@ -54,6 +55,40 @@ type VCProof struct {
 	VerificationMethod string    `json:"verificationMethod"`
 	JWSSignature       string    `json:"jws,omitempty"`
 	ProofValue         string    `json:"proofValue,omitempty"`
+}
+
+// ─────────────────────────────────────────────
+// DID Registry (on-chain resolution)
+// ─────────────────────────────────────────────
+
+// ResolvedDID is a DID document resolved from the on-chain DID registry.
+type ResolvedDID struct {
+	DID                 string            `json:"did"`
+	Method              DIDMethod         `json:"method"`
+	Controller          string            `json:"controller"` // Stellar address
+	VerificationMethods []VerificationKey `json:"verificationMethod"`
+	Services            []DIDServiceEntry `json:"service"`
+	CreatedAt           time.Time         `json:"createdAt"`
+	UpdatedAt           time.Time         `json:"updatedAt"`
+	Deactivated         bool              `json:"deactivated"`
+}
+
+// DIDServiceEntry is a service endpoint in an on-chain DID document.
+type DIDServiceEntry struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Endpoint string `json:"serviceEndpoint"`
+}
+
+// CredentialStatusRecord is the on-chain status of an anchored credential.
+type CredentialStatusRecord struct {
+	VCHash     string     `json:"vcHash"` // hex-encoded SHA-256
+	IssuerDID  string     `json:"issuerDid"`
+	SubjectDID string     `json:"subjectDid"`
+	VCType     string     `json:"vcType"`
+	Status     string     `json:"status"` // "Valid" | "Revoked"
+	AnchoredAt time.Time  `json:"anchoredAt"`
+	RevokedAt  *time.Time `json:"revokedAt,omitempty"`
 }
 
 // ─────────────────────────────────────────────

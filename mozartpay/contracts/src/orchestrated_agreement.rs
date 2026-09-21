@@ -4,12 +4,71 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, 
-    panic_with_error, Address, BytesN, Env, Vec, Symbol, Map, String, Bytes,
+    contract, contracterror, contractimpl, contracttype,
+    panic_with_error, vec, xdr::ToXdr, Address, BytesN, Env, Vec, Symbol, Map, String, Bytes,
 };
-use stellar_access::ownable::{self as ownable};
-use stellar_contract_utils::pausable::{self as pausable};
-use stellar_macros::{only_owner, when_not_paused};
+
+// DID Registry cross-contract client — hand-rolled via try_invoke_contract.
+// contractimport! can't be used: the registry wasm spec embeds OpenZeppelin
+// library types (e.g. MerkleDistributor's `index: Val` event field) whose
+// generated derives require Val: Eq/Ord, which don't exist. A path dep is
+// also out — it would link the registry's exported contract fns into this
+// wasm and collide with ours. We only need two read methods, so a minimal
+// client is cleaner.
+mod did_registry {
+    use soroban_sdk::{
+        contracttype, vec, Address, BytesN, ConversionError, Env, Error, IntoVal,
+        InvokeError, Map, String, Symbol, TryFromVal, Val, Vec,
+    };
+
+    /// Mirror of the registry's CredentialStatus. It has no explicit
+    /// discriminants, so #[contracttype] encodes it as a union (Vec[Symbol]),
+    /// not a u32 — decode the field into this replica rather than a u32.
+    #[contracttype(export = false)]
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub enum CredentialStatus {
+        Valid,
+        Revoked,
+    }
+
+    /// DIDRegistryError::CredentialNotFound code.
+    pub const ERR_CREDENTIAL_NOT_FOUND: u32 = 204;
+
+    /// resolve_did(did) -> DIDDocumentData. Ok(Ok(_)) iff the DID is registered
+    /// and active — the registry panics when it's missing or deactivated, so
+    /// we decode the return as an opaque Val and only check success.
+    pub fn try_resolve_did(
+        e: &Env,
+        registry: &Address,
+        did: &String,
+    ) -> Result<Result<Val, ConversionError>, Result<Error, InvokeError>> {
+        e.try_invoke_contract::<Val, Error>(
+            registry,
+            &Symbol::new(e, "resolve_did"),
+            vec![e, did.into_val(e)],
+        )
+    }
+
+    /// credential_status(vc_hash) -> CredentialRecord, decoded as a field map
+    /// so we can read `status` without replicating the whole struct.
+    pub fn try_credential_status(
+        e: &Env,
+        registry: &Address,
+        vc_hash: &BytesN<32>,
+    ) -> Result<Result<Map<Symbol, Val>, ConversionError>, Result<Error, InvokeError>> {
+        e.try_invoke_contract::<Map<Symbol, Val>, Error>(
+            registry,
+            &Symbol::new(e, "credential_status"),
+            vec![e, vc_hash.into_val(e)],
+        )
+    }
+
+    /// Decode the `status` field of a CredentialRecord map into CredentialStatus.
+    pub fn credential_status(e: &Env, rec: &Map<Symbol, Val>) -> Option<CredentialStatus> {
+        rec.get(Symbol::new(e, "status"))
+            .and_then(|v| CredentialStatus::try_from_val(e, &v).ok())
+    }
+}
 
 // ─────────────────────────────────────────────
 // Custom Errors (OpenZeppelin Pattern)
@@ -53,6 +112,13 @@ pub enum OrchestratedAgreementError {
     // Integration errors (5xx)
     CarbonCreditsNegative = 500,
     OracleDataStale = 501,
+
+    // Compliance / registry errors (6xx)
+    DIDNotRegistered = 601,
+    CredentialRevoked = 602,
+    VerifierRejected = 603,
+    ReportNotAnchored = 604,
+    RegistryCheckFailed = 605,
 }
 
 // ─────────────────────────────────────────────
@@ -79,6 +145,7 @@ pub enum DIDMethod {
     Key,
     Ethr,
     Ebsi,
+    Soroban,
 }
 
 #[contracttype]
@@ -138,6 +205,7 @@ pub struct ReportingLayer {
     pub tx_hash: Option<BytesN<32>>,    // Final settlement transaction
     pub report_generated: bool,       // Compliance report created
     pub dispute_resolution_hash: Option<BytesN<32>>, // Dispute outcome
+    pub report_hash: Option<BytesN<32>>, // SHA-256 of the generated compliance report
 }
 
 #[contracttype]
@@ -151,11 +219,13 @@ pub struct OrchestratedAgreement {
     pub updated_at: u64,
     pub expires_at: Option<u64>,
     pub dispute_window_end: Option<u64>, // Time window for disputes
-    pub identity: Option<IdentityLayer>,
-    pub wallet: Option<WalletLayer>,
-    pub asset: Option<AssetLayer>,
-    pub integration: Option<IntegrationLayer>,
-    pub reporting: Option<ReportingLayer>,
+    // Layer fields are Vec<T> with 0 or 1 elements (Option-like) because
+    // Option<CustomType> fields break the soroban-sdk testutils ScVal codegen.
+    pub identity: Vec<IdentityLayer>,
+    pub wallet: Vec<WalletLayer>,
+    pub asset: Vec<AssetLayer>,
+    pub integration: Vec<IntegrationLayer>,
+    pub reporting: Vec<ReportingLayer>,
     pub metadata: Map<Symbol, String>, // Additional key-value data
     pub version: u32,                  // Contract version for upgrades
 }
@@ -165,9 +235,11 @@ pub struct OrchestratedAgreement {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataKey {
     Owner,
+    Paused,
     AgreementCount,
     Agreement(BytesN<32>),
     InitiatorAgreements(Address), // List of agreements by initiator
+    DIDRegistry,                  // DID registry contract address (compliance checks)
 }
 
 // ─────────────────────────────────────────────
@@ -305,6 +377,18 @@ pub fn emit_state_transition(
     );
 }
 
+pub fn emit_report_anchored(
+    e: &Env,
+    agreement_id: &BytesN<32>,
+    report_hash: &BytesN<32>,
+    timestamp: u64,
+) {
+    e.events().publish(
+        (Symbol::new(e, "report_anchored"), agreement_id.clone()),
+        (report_hash.clone(), timestamp),
+    );
+}
+
 // ─────────────────────────────────────────────
 // Contract Implementation
 // ─────────────────────────────────────────────
@@ -316,21 +400,20 @@ pub struct OrchestratedAgreementContract;
 impl OrchestratedAgreementContract {
     // ─── Constructor & Admin ──────────────────
 
-    /// Constructor - initializes with owner using OpenZeppelin ownable module
+    /// Constructor - initializes the owner and pause state.
     pub fn __constructor(e: &Env, owner: Address) {
-        ownable::set_owner(e, &owner);
         e.storage().instance().set(&DataKey::Owner, &owner);
+        e.storage().instance().set(&DataKey::Paused, &false);
         e.storage().instance().set(&DataKey::AgreementCount, &0u64);
     }
 
-    /// Transfer ownership to new address (OpenZeppelin only_owner macro)
-    #[only_owner]
+    /// Transfer ownership to new address (owner only)
     pub fn transfer_ownership(e: &Env, new_owner: Address) {
+        Self::require_owner(e);
         let current_owner: Address = e.storage().instance().get(&DataKey::Owner).expect("Owner not set");
         if new_owner == current_owner {
             panic_with_error!(e, OrchestratedAgreementError::Unauthorized);
         }
-        ownable::set_owner(e, &new_owner);
         e.storage().instance().set(&DataKey::Owner, &new_owner);
     }
 
@@ -339,23 +422,38 @@ impl OrchestratedAgreementContract {
         e.storage().instance().get(&DataKey::Owner).expect("Owner not set")
     }
 
-    // ─── Pause Mechanism (OpenZeppelin Pausable) ──────────────────────
+    // ─── Pause Mechanism ──────────────────────
 
     /// Pause contract operations (owner only)
-    #[only_owner]
     pub fn pause(e: &Env) {
-        pausable::pause(e);
+        Self::require_owner(e);
+        e.storage().instance().set(&DataKey::Paused, &true);
     }
 
     /// Unpause contract operations (owner only)
-    #[only_owner]
     pub fn unpause(e: &Env) {
-        pausable::unpause(e);
+        Self::require_owner(e);
+        e.storage().instance().set(&DataKey::Paused, &false);
     }
 
-    /// Check if contract is paused (OpenZeppelin Pausable)
+    /// Check if contract is paused
     pub fn is_paused(e: &Env) -> bool {
-        pausable::paused(e)
+        e.storage().instance().get(&DataKey::Paused).unwrap_or(false)
+    }
+
+    // ─── DID Registry Integration ─────────────
+
+    /// Set the DID registry contract used for on-chain compliance checks.
+    /// When configured, attest_identity/execute/settle verify that the DID
+    /// resolves on-chain and that an anchored credential is not revoked.
+    pub fn set_did_registry(e: &Env, registry: Address) {
+        Self::require_owner(e);
+        e.storage().instance().set(&DataKey::DIDRegistry, &registry);
+    }
+
+    /// Get the configured DID registry contract address, if any.
+    pub fn get_did_registry(e: &Env) -> Option<Address> {
+        e.storage().instance().get(&DataKey::DIDRegistry)
     }
 
     // ─── Agreement Lifecycle ──────────────────
@@ -367,7 +465,6 @@ impl OrchestratedAgreementContract {
     /// * `counterparty` - Optional other party for bilateral agreements
     /// * `expires_at` - Optional expiration timestamp
     /// * `dispute_window` - Seconds after execution for dispute filing
-    #[when_not_paused]
     pub fn create_agreement(
         e: &Env,
         initiator: Address,
@@ -376,6 +473,7 @@ impl OrchestratedAgreementContract {
         dispute_window: u32,
     ) -> BytesN<32> {
         initiator.require_auth();
+        Self::require_not_paused(e);
 
         // Validate expiration is in the future
         let now = e.ledger().timestamp();
@@ -390,9 +488,14 @@ impl OrchestratedAgreementContract {
             panic_with_error!(e, OrchestratedAgreementError::InvalidTimestamp);
         }
 
-        // Generate unique agreement ID
+        // Generate unique agreement ID deterministically. A prng-derived ID
+        // would differ between simulation and submission (the tx hash — and
+        // thus the prng seed — changes once the SorobanData ext is attached),
+        // putting the Agreement key outside the simulated footprint.
         let count: u64 = e.storage().instance().get(&DataKey::AgreementCount).unwrap_or(0);
-        let id = e.prng().gen::<BytesN<32>>();
+        let mut preimage = initiator.clone().to_xdr(e);
+        preimage.append(&Bytes::from_array(e, &count.to_be_bytes()));
+        let id: BytesN<32> = e.crypto().sha256(&preimage).into();
 
         // Calculate dispute window end if expiration is set
         let dispute_window_end = expires_at.map(|exp| exp + dispute_window as u64);
@@ -406,11 +509,11 @@ impl OrchestratedAgreementContract {
             updated_at: now,
             expires_at,
             dispute_window_end,
-            identity: None,
-            wallet: None,
-            asset: None,
-            integration: None,
-            reporting: None,
+            identity: Vec::new(e),
+            wallet: Vec::new(e),
+            asset: Vec::new(e),
+            integration: Vec::new(e),
+            reporting: Vec::new(e),
             metadata: Map::new(e),
             version: 1,
         };
@@ -478,6 +581,45 @@ impl OrchestratedAgreementContract {
             panic_with_error!(e, OrchestratedAgreementError::InvalidHash);
         }
 
+        // If a DID registry is configured, verify the DID resolves on-chain
+        // (registered and not deactivated) and that an anchored credential
+        // matching attestation_hash is not revoked.
+        if let Some(registry_addr) = Self::get_did_registry(e) {
+            match did_registry::try_resolve_did(e, &registry_addr, &did) {
+                Ok(Ok(_doc)) => {}
+                _ => panic_with_error!(e, OrchestratedAgreementError::DIDNotRegistered),
+            }
+
+            match did_registry::try_credential_status(e, &registry_addr, &attestation_hash) {
+                Ok(Ok(rec)) => {
+                    if did_registry::credential_status(e, &rec)
+                        == Some(did_registry::CredentialStatus::Revoked)
+                    {
+                        panic_with_error!(e, OrchestratedAgreementError::CredentialRevoked);
+                    }
+                }
+                // Not anchored is allowed — attestation_hash may not be a VC hash.
+                Err(Ok(err)) if Self::is_registry_contract_error(
+                    &err,
+                    did_registry::ERR_CREDENTIAL_NOT_FOUND,
+                ) => {}
+                _ => panic_with_error!(e, OrchestratedAgreementError::RegistryCheckFailed),
+            }
+        }
+
+        // If an on-chain verifier is specified, require it to accept the
+        // attestation hash (e.g. ZK proof verifier, KYC oracle contract).
+        if let Some(verifier_addr) = &verifier {
+            let verified: bool = e.invoke_contract(
+                verifier_addr,
+                &Symbol::new(e, "verify_proof"),
+                vec![e, attestation_hash.clone().into()],
+            );
+            if !verified {
+                panic_with_error!(e, OrchestratedAgreementError::VerifierRejected);
+            }
+        }
+
         let old_state = agreement.state.clone();
 
         let identity = IdentityLayer {
@@ -490,7 +632,7 @@ impl OrchestratedAgreementContract {
             verifier_address: verifier,
         };
 
-        agreement.identity = Some(identity);
+        agreement.identity = vec![e, identity];
         agreement.state = AgreementState::Active;
         agreement.updated_at = e.ledger().timestamp();
 
@@ -543,7 +685,7 @@ impl OrchestratedAgreementContract {
             required_signers,
         };
 
-        agreement.wallet = Some(wallet);
+        agreement.wallet = vec![e, wallet];
         agreement.updated_at = e.ledger().timestamp();
 
         Self::update_agreement(e, agreement_id.clone(), &agreement);
@@ -562,7 +704,7 @@ impl OrchestratedAgreementContract {
 
         Self::require_not_paused(e);
 
-        if let Some(mut wallet) = agreement.wallet.clone() {
+        if let Some(mut wallet) = agreement.wallet.first() {
             // Check for duplicates
             for existing in wallet.secondary_addresses.iter() {
                 if existing == signer {
@@ -570,7 +712,7 @@ impl OrchestratedAgreementContract {
                 }
             }
             wallet.secondary_addresses.push_back(signer);
-            agreement.wallet = Some(wallet);
+            agreement.wallet = vec![e, wallet];
             agreement.updated_at = e.ledger().timestamp();
             Self::update_agreement(e, agreement_id.clone(), &agreement);
         } else {
@@ -631,12 +773,12 @@ impl OrchestratedAgreementContract {
         };
 
         // Mark wallet as funded
-        if let Some(mut wallet) = agreement.wallet.clone() {
+        if let Some(mut wallet) = agreement.wallet.first() {
             wallet.funded = true;
-            agreement.wallet = Some(wallet);
+            agreement.wallet = vec![e, wallet];
         }
 
-        agreement.asset = Some(asset);
+        agreement.asset = vec![e, asset];
         agreement.state = AgreementState::Funded;
         agreement.updated_at = e.ledger().timestamp();
 
@@ -655,9 +797,9 @@ impl OrchestratedAgreementContract {
             panic_with_error!(e, OrchestratedAgreementError::InvalidStateTransition);
         }
 
-        if let Some(mut asset) = agreement.asset.clone() {
+        if let Some(mut asset) = agreement.asset.first() {
             asset.escrow_released = true;
-            agreement.asset = Some(asset);
+            agreement.asset = vec![e, asset];
             agreement.updated_at = e.ledger().timestamp();
             Self::update_agreement(e, agreement_id.clone(), &agreement);
         }
@@ -725,7 +867,7 @@ impl OrchestratedAgreementContract {
             tempo_expires_at,
         };
 
-        agreement.integration = Some(integration);
+        agreement.integration = vec![e, integration];
         agreement.updated_at = e.ledger().timestamp();
 
         Self::update_agreement(e, agreement_id.clone(), &agreement);
@@ -745,12 +887,12 @@ impl OrchestratedAgreementContract {
 
         Self::require_not_paused(e);
 
-        if let Some(mut integration) = agreement.integration.clone() {
+        if let Some(mut integration) = agreement.integration.first() {
             if integration.carbon_retired {
                 panic_with_error!(e, OrchestratedAgreementError::InvalidStateTransition);
             }
             integration.carbon_retired = true;
-            agreement.integration = Some(integration);
+            agreement.integration = vec![e, integration];
             agreement.updated_at = e.ledger().timestamp();
             Self::update_agreement(e, agreement_id.clone(), &agreement);
         } else {
@@ -777,13 +919,13 @@ impl OrchestratedAgreementContract {
         Self::require_not_expired(e, &agreement);
 
         // Validate all layers are complete
-        if agreement.identity.is_none() {
+        if agreement.identity.is_empty() {
             panic_with_error!(e, OrchestratedAgreementError::IdentityRequired);
         }
-        if agreement.wallet.is_none() {
+        if agreement.wallet.is_empty() {
             panic_with_error!(e, OrchestratedAgreementError::WalletRequired);
         }
-        if agreement.asset.is_none() {
+        if agreement.asset.is_empty() {
             panic_with_error!(e, OrchestratedAgreementError::AssetRequired);
         }
 
@@ -791,6 +933,9 @@ impl OrchestratedAgreementContract {
         if agreement.state != AgreementState::Funded {
             panic_with_error!(e, OrchestratedAgreementError::InvalidStateTransition);
         }
+
+        // Re-verify identity compliance before executing
+        Self::check_compliance(e, &agreement);
 
         let old_state = agreement.state.clone();
         let timestamp = e.ledger().timestamp();
@@ -813,9 +958,10 @@ impl OrchestratedAgreementContract {
             tx_hash: Some(final_tx_hash.clone()),
             report_generated: true,
             dispute_resolution_hash: None,
+            report_hash: None,
         };
 
-        agreement.reporting = Some(reporting);
+        agreement.reporting = vec![e, reporting];
         agreement.state = AgreementState::Executed;
         agreement.updated_at = timestamp;
 
@@ -842,6 +988,9 @@ impl OrchestratedAgreementContract {
                 panic_with_error!(e, OrchestratedAgreementError::DisputeActive);
             }
         }
+
+        // Re-verify identity compliance before settling
+        Self::check_compliance(e, &agreement);
 
         let old_state = agreement.state.clone();
         agreement.state = AgreementState::Settled;
@@ -908,9 +1057,9 @@ impl OrchestratedAgreementContract {
         agreement.updated_at = e.ledger().timestamp();
 
         // Update reporting with dispute info
-        if let Some(mut reporting) = agreement.reporting.clone() {
+        if let Some(mut reporting) = agreement.reporting.first() {
             reporting.dispute_resolution_hash = Some(dispute_hash.clone());
-            agreement.reporting = Some(reporting);
+            agreement.reporting = vec![e, reporting];
         }
 
         Self::update_agreement(e, agreement_id.clone(), &agreement);
@@ -920,13 +1069,13 @@ impl OrchestratedAgreementContract {
     }
 
     /// Resolve a dispute (owner only, for now)
-    #[only_owner]
     pub fn resolve_dispute(
         e: &Env,
         agreement_id: BytesN<32>,
         resolution_hash: BytesN<32>,
         settle: bool, // If true, settle; if false, return to Executed
     ) {
+        Self::require_owner(e);
         Self::require_not_paused(e);
 
         let mut agreement = Self::get_agreement(e, agreement_id.clone());
@@ -938,9 +1087,9 @@ impl OrchestratedAgreementContract {
         let old_state = agreement.state.clone();
 
         // Update reporting with resolution
-        if let Some(mut reporting) = agreement.reporting.clone() {
+        if let Some(mut reporting) = agreement.reporting.first() {
             reporting.dispute_resolution_hash = Some(resolution_hash);
-            agreement.reporting = Some(reporting);
+            agreement.reporting = vec![e, reporting];
         }
 
         if settle {
@@ -954,6 +1103,48 @@ impl OrchestratedAgreementContract {
 
         Self::update_agreement(e, agreement_id.clone(), &agreement);
         emit_state_transition(e, &agreement_id, &old_state, &agreement.state);
+    }
+
+    /// Anchor a compliance report hash on-chain.
+    /// Sets reporting.report_hash and optionally the ISO 20022 message
+    /// reference. Requires the reporting layer to exist (agreement must be
+    /// Executed or later).
+    ///
+    /// # Arguments
+    /// * `agreement_id` - The agreement to update
+    /// * `report_hash` - SHA-256 of the generated compliance report
+    /// * `iso20022_ref` - Optional ISO 20022 message reference
+    pub fn anchor_report(
+        e: &Env,
+        agreement_id: BytesN<32>,
+        report_hash: BytesN<32>,
+        iso20022_ref: Option<String>,
+    ) {
+        let mut agreement = Self::get_agreement(e, agreement_id.clone());
+        agreement.initiator.require_auth();
+
+        Self::require_not_paused(e);
+
+        let zero_hash = BytesN::from_array(e, &[0; 32]);
+        if report_hash == zero_hash {
+            panic_with_error!(e, OrchestratedAgreementError::InvalidHash);
+        }
+
+        match agreement.reporting.first() {
+            Some(mut reporting) => {
+                reporting.report_hash = Some(report_hash.clone());
+                if iso20022_ref.is_some() {
+                    reporting.iso20022_ref = iso20022_ref;
+                }
+                agreement.reporting = vec![e, reporting];
+            }
+            None => panic_with_error!(e, OrchestratedAgreementError::ReportNotAnchored),
+        }
+
+        agreement.updated_at = e.ledger().timestamp();
+        Self::update_agreement(e, agreement_id.clone(), &agreement);
+
+        emit_report_anchored(e, &agreement_id, &report_hash, e.ledger().timestamp());
     }
 
     // ─── Query Functions ──────────────────────
@@ -982,11 +1173,11 @@ impl OrchestratedAgreementContract {
         let agreement = Self::get_agreement(e, agreement_id);
         let mut status = Map::new(e);
         
-        status.set(Symbol::new(e, "identity"), agreement.identity.is_some());
-        status.set(Symbol::new(e, "wallet"), agreement.wallet.is_some());
-        status.set(Symbol::new(e, "asset"), agreement.asset.is_some());
-        status.set(Symbol::new(e, "integration"), agreement.integration.is_some());
-        status.set(Symbol::new(e, "reporting"), agreement.reporting.is_some());
+        status.set(Symbol::new(e, "identity"), !agreement.identity.is_empty());
+        status.set(Symbol::new(e, "wallet"), !agreement.wallet.is_empty());
+        status.set(Symbol::new(e, "asset"), !agreement.asset.is_empty());
+        status.set(Symbol::new(e, "integration"), !agreement.integration.is_empty());
+        status.set(Symbol::new(e, "reporting"), !agreement.reporting.is_empty());
         
         status
     }
@@ -1106,8 +1297,13 @@ impl OrchestratedAgreementContract {
         e.storage().persistent().set(&key, agreement);
     }
 
+    /// Require the caller to be the contract owner (replaces only_owner).
+    fn require_owner(e: &Env) {
+        Self::owner(e).require_auth();
+    }
+
     fn require_not_paused(e: &Env) {
-        if pausable::paused(e) {
+        if Self::is_paused(e) {
             panic_with_error!(e, OrchestratedAgreementError::ContractPaused);
         }
     }
@@ -1118,6 +1314,47 @@ impl OrchestratedAgreementContract {
                 panic_with_error!(e, OrchestratedAgreementError::AgreementExpired);
             }
         }
+    }
+
+    /// Re-verify identity compliance against the DID registry (if configured):
+    /// the DID must still resolve (registered, not deactivated) and an
+    /// anchored credential must not be revoked. No-op when no registry is
+    /// configured or no identity layer is present.
+    fn check_compliance(e: &Env, agreement: &OrchestratedAgreement) {
+        let registry_addr = match Self::get_did_registry(e) {
+            Some(addr) => addr,
+            None => return,
+        };
+        let identity = match agreement.identity.first() {
+            Some(i) => i,
+            None => return,
+        };
+
+        match did_registry::try_resolve_did(e, &registry_addr, &identity.did) {
+            Ok(Ok(_doc)) => {}
+            _ => panic_with_error!(e, OrchestratedAgreementError::DIDNotRegistered),
+        }
+
+        match did_registry::try_credential_status(e, &registry_addr, &identity.attestation_hash) {
+            Ok(Ok(rec)) => {
+                if did_registry::credential_status(e, &rec)
+                    == Some(did_registry::CredentialStatus::Revoked)
+                {
+                    panic_with_error!(e, OrchestratedAgreementError::CredentialRevoked);
+                }
+            }
+            Err(Ok(err)) if Self::is_registry_contract_error(
+                &err,
+                did_registry::ERR_CREDENTIAL_NOT_FOUND,
+            ) => {}
+            _ => panic_with_error!(e, OrchestratedAgreementError::RegistryCheckFailed),
+        }
+    }
+
+    /// Check whether a cross-contract error is a specific DID registry
+    /// contract error code.
+    fn is_registry_contract_error(err: &soroban_sdk::Error, code: u32) -> bool {
+        err.is_type(soroban_sdk::xdr::ScErrorType::Contract) && err.get_code() == code
     }
 
     fn score_to_grade(e: &Env, score: Option<i32>) -> Symbol {
