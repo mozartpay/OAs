@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 )
 
@@ -10,23 +11,25 @@ import (
 type StrategyType string
 
 const (
-	StrategyArbitrage      StrategyType = "arbitrage"
-	StrategyMeanReversion  StrategyType = "mean_reversion"
-	StrategyMomentum       StrategyType = "momentum"
-	StrategyGridTrading    StrategyType = "grid_trading"
-	StrategyDCA            StrategyType = "dca"
-	StrategyBreakout       StrategyType = "breakout"
-	StrategyScalping       StrategyType = "scalping"
+	StrategyArbitrage     StrategyType = "arbitrage"
+	StrategyMeanReversion StrategyType = "mean_reversion"
+	StrategyMomentum      StrategyType = "momentum"
+	StrategyGridTrading   StrategyType = "grid_trading"
+	StrategyDCA           StrategyType = "dca"
+	StrategyBreakout      StrategyType = "breakout"
+	StrategyScalping      StrategyType = "scalping"
+	StrategyBuySell       StrategyType = "buysell"
+	StrategySell          StrategyType = "sell"
 )
 
 // StrategyStatus represents the current state of a trading strategy
 type StrategyStatus string
 
 const (
-	StrategyActive    StrategyStatus = "active"
-	StrategyPaused    StrategyStatus = "paused"
-	StrategyStopped   StrategyStatus = "stopped"
-	StrategyError     StrategyStatus = "error"
+	StrategyActive  StrategyStatus = "active"
+	StrategyPaused  StrategyStatus = "paused"
+	StrategyStopped StrategyStatus = "stopped"
+	StrategyError   StrategyStatus = "error"
 )
 
 // TradingStrategy represents a configured trading strategy
@@ -62,32 +65,32 @@ type RiskLimits struct {
 // DefaultRiskLimits returns conservative risk limits
 func DefaultRiskLimits() RiskLimits {
 	return RiskLimits{
-		MaxPositionSize:   100.0,  // 100 units of base asset
-		MaxDailyLoss:      50.0,   // 50 XLM max daily loss
-		MaxDrawdown:       10.0,   // 10% max drawdown
-		StopLossPercent:   2.0,    // 2% stop loss
-		TakeProfitPercent: 3.0,    // 3% take profit
-		MaxOpenTrades:     3,      // Max 3 concurrent trades
+		MaxPositionSize:   100.0, // 100 units of base asset
+		MaxDailyLoss:      50.0,  // 50 XLM max daily loss
+		MaxDrawdown:       10.0,  // 10% max drawdown
+		StopLossPercent:   2.0,   // 2% stop loss
+		TakeProfitPercent: 3.0,   // 3% take profit
+		MaxOpenTrades:     3,     // Max 3 concurrent trades
 	}
 }
 
 // StrategyExecution represents a single strategy execution/trade
 type StrategyExecution struct {
-	ID           string         `json:"id"`
-	StrategyID   string         `json:"strategyId"`
-	StrategyType StrategyType   `json:"strategyType"`
-	Timestamp    time.Time      `json:"timestamp"`
-	Action       TradeAction    `json:"action"`
-	BaseAsset    string         `json:"baseAsset"`
-	QuoteAsset   string         `json:"quoteAsset"`
-	Amount       float64        `json:"amount"`
-	Price        float64        `json:"price"`
-	Value        float64        `json:"value"`
-	ProfitLoss   float64        `json:"profitLoss"`
-	ProfitPct    float64        `json:"profitPct"`
-	TxHash       string         `json:"txHash,omitempty"`
-	Status       ExecutionStatus `json:"status"`
-	Error        string         `json:"error,omitempty"`
+	ID           string                 `json:"id"`
+	StrategyID   string                 `json:"strategyId"`
+	StrategyType StrategyType           `json:"strategyType"`
+	Timestamp    time.Time              `json:"timestamp"`
+	Action       TradeAction            `json:"action"`
+	BaseAsset    string                 `json:"baseAsset"`
+	QuoteAsset   string                 `json:"quoteAsset"`
+	Amount       float64                `json:"amount"`
+	Price        float64                `json:"price"`
+	Value        float64                `json:"value"`
+	ProfitLoss   float64                `json:"profitLoss"`
+	ProfitPct    float64                `json:"profitPct"`
+	TxHash       string                 `json:"txHash,omitempty"`
+	Status       ExecutionStatus        `json:"status"`
+	Error        string                 `json:"error,omitempty"`
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -104,53 +107,53 @@ const (
 type ExecutionStatus string
 
 const (
-	ExecutionPending   ExecutionStatus = "pending"
-	ExecutionExecuted  ExecutionStatus = "executed"
-	ExecutionFailed  ExecutionStatus = "failed"
-	ExecutionSkipped ExecutionStatus = "skipped"
+	ExecutionPending  ExecutionStatus = "pending"
+	ExecutionExecuted ExecutionStatus = "executed"
+	ExecutionFailed   ExecutionStatus = "failed"
+	ExecutionSkipped  ExecutionStatus = "skipped"
 )
 
 // StrategyPerformance tracks strategy performance metrics
 type StrategyPerformance struct {
-	StrategyID        string    `json:"strategyId"`
-	TotalTrades       int       `json:"totalTrades"`
-	WinningTrades     int       `json:"winningTrades"`
-	LosingTrades      int       `json:"losingTrades"`
-	WinRate           float64   `json:"winRate"`
-	AvgProfit         float64   `json:"avgProfit"`
-	AvgLoss           float64   `json:"avgLoss"`
-	ProfitFactor      float64   `json:"profitFactor"`
-	SharpeRatio       float64   `json:"sharpeRatio"`
-	MaxDrawdown       float64   `json:"maxDrawdown"`
-	TotalReturn       float64   `json:"totalReturn"`
-	DailyReturns      []float64 `json:"dailyReturns"`
-	LastUpdated       time.Time `json:"lastUpdated"`
+	StrategyID    string    `json:"strategyId"`
+	TotalTrades   int       `json:"totalTrades"`
+	WinningTrades int       `json:"winningTrades"`
+	LosingTrades  int       `json:"losingTrades"`
+	WinRate       float64   `json:"winRate"`
+	AvgProfit     float64   `json:"avgProfit"`
+	AvgLoss       float64   `json:"avgLoss"`
+	ProfitFactor  float64   `json:"profitFactor"`
+	SharpeRatio   float64   `json:"sharpeRatio"`
+	MaxDrawdown   float64   `json:"maxDrawdown"`
+	TotalReturn   float64   `json:"totalReturn"`
+	DailyReturns  []float64 `json:"dailyReturns"`
+	LastUpdated   time.Time `json:"lastUpdated"`
 }
 
 // MarketData represents price and order book data
 type MarketData struct {
-	BaseAsset     string    `json:"baseAsset"`
-	QuoteAsset    string    `json:"quoteAsset"`
-	Price         float64   `json:"price"`
-	Bid           float64   `json:"bid"`
-	Ask           float64   `json:"ask"`
-	Spread        float64   `json:"spread"`
-	SpreadPct     float64   `json:"spreadPct"`
-	Volume24h     float64   `json:"volume24h"`
-	Change24h     float64   `json:"change24h"`
-	ChangePct24h  float64   `json:"changePct24h"`
-	High24h       float64   `json:"high24h"`
-	Low24h        float64   `json:"low24h"`
-	Timestamp     time.Time `json:"timestamp"`
-	OrderBookDepth int      `json:"orderBookDepth"`
+	BaseAsset      string    `json:"baseAsset"`
+	QuoteAsset     string    `json:"quoteAsset"`
+	Price          float64   `json:"price"`
+	Bid            float64   `json:"bid"`
+	Ask            float64   `json:"ask"`
+	Spread         float64   `json:"spread"`
+	SpreadPct      float64   `json:"spreadPct"`
+	Volume24h      float64   `json:"volume24h"`
+	Change24h      float64   `json:"change24h"`
+	ChangePct24h   float64   `json:"changePct24h"`
+	High24h        float64   `json:"high24h"`
+	Low24h         float64   `json:"low24h"`
+	Timestamp      time.Time `json:"timestamp"`
+	OrderBookDepth int       `json:"orderBookDepth"`
 }
 
 // PriceHistory represents historical price data
 type PriceHistory struct {
-	BaseAsset  string      `json:"baseAsset"`
-	QuoteAsset string      `json:"quoteAsset"`
-	Interval   string      `json:"interval"` // 1m, 5m, 15m, 1h, 4h, 1d
-	Candles    []Candle    `json:"candles"`
+	BaseAsset  string   `json:"baseAsset"`
+	QuoteAsset string   `json:"quoteAsset"`
+	Interval   string   `json:"interval"` // 1m, 5m, 15m, 1h, 4h, 1d
+	Candles    []Candle `json:"candles"`
 }
 
 type Candle struct {
@@ -164,25 +167,25 @@ type Candle struct {
 
 // StrategySignal represents a trading signal from a strategy
 type StrategySignal struct {
-	StrategyID   string                 `json:"strategyId"`
-	Timestamp    time.Time              `json:"timestamp"`
-	Action       TradeAction            `json:"action"`
-	Confidence   float64                `json:"confidence"` // 0.0 to 1.0
-	Reason       string                 `json:"reason"`
-	Price        float64                `json:"price"`
-	Amount       float64                `json:"amount"`
-	StopLoss     float64                `json:"stopLoss,omitempty"`
-	TakeProfit   float64                `json:"takeProfit,omitempty"`
-	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+	StrategyID string                 `json:"strategyId"`
+	Timestamp  time.Time              `json:"timestamp"`
+	Action     TradeAction            `json:"action"`
+	Confidence float64                `json:"confidence"` // 0.0 to 1.0
+	Reason     string                 `json:"reason"`
+	Price      float64                `json:"price"`
+	Amount     float64                `json:"amount"`
+	StopLoss   float64                `json:"stopLoss,omitempty"`
+	TakeProfit float64                `json:"takeProfit,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // GridLevel represents a single level in a grid trading strategy
 type GridLevel struct {
-	Level        int     `json:"level"`
-	Price        float64 `json:"price"`
-	BuyTriggered bool    `json:"buyTriggered"`
-	SellTriggered bool   `json:"sellTriggered"`
-	Executed     bool    `json:"executed"`
+	Level         int     `json:"level"`
+	Price         float64 `json:"price"`
+	BuyTriggered  bool    `json:"buyTriggered"`
+	SellTriggered bool    `json:"sellTriggered"`
+	Executed      bool    `json:"executed"`
 }
 
 // GridState tracks the state of a grid trading strategy
@@ -193,4 +196,108 @@ type GridState struct {
 	GridSpacing  float64     `json:"gridSpacing"`
 	NumGrids     int         `json:"numGrids"`
 	CurrentLevel int         `json:"currentLevel"`
+}
+
+// AssetRef identifies a Stellar asset. Issuer is empty for native XLM.
+type AssetRef struct {
+	Code   string `json:"code"`
+	Issuer string `json:"issuer,omitempty"`
+}
+
+// Canonical returns the canonical Horizon asset string.
+func (a AssetRef) Canonical() string {
+	code := strings.ToUpper(strings.TrimSpace(a.Code))
+	if code == "" || code == "XLM" || code == "NATIVE" {
+		return "native"
+	}
+	if a.Issuer == "" {
+		return code
+	}
+	return code + ":" + strings.TrimSpace(a.Issuer)
+}
+
+// OrderSide is the market direction from the base asset perspective.
+type OrderSide string
+
+const (
+	OrderSideBuy  OrderSide = "buy"
+	OrderSideSell OrderSide = "sell"
+)
+
+// OrderIntent is a desired resting order produced by a strategy.
+type OrderIntent struct {
+	IntentID   string    `json:"intentId"`
+	StrategyID string    `json:"strategyId"`
+	Side       OrderSide `json:"side"`
+	BaseAsset  AssetRef  `json:"baseAsset"`
+	QuoteAsset AssetRef  `json:"quoteAsset"`
+	Price      float64   `json:"price"`
+	Amount     float64   `json:"amount"`
+	Passive    bool      `json:"passive"`
+	Reason     string    `json:"reason,omitempty"`
+}
+
+// ManagedOffer links a strategy intent to a live Stellar offer.
+type ManagedOffer struct {
+	IntentID    string     `json:"intentId"`
+	StrategyID  string     `json:"strategyId"`
+	Side        OrderSide  `json:"side"`
+	BaseAsset   AssetRef   `json:"baseAsset"`
+	QuoteAsset  AssetRef   `json:"quoteAsset"`
+	Price       float64    `json:"price"`
+	Amount      float64    `json:"amount"`
+	Passive     bool       `json:"passive"`
+	Status      string     `json:"status"`
+	OfferID     int64      `json:"offerId,omitempty"`
+	TxHash      string     `json:"txHash,omitempty"`
+	LastError   string     `json:"lastError,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	SubmittedAt *time.Time `json:"submittedAt,omitempty"`
+}
+
+// StrategyRuntime is the persisted operational state of a strategy.
+type StrategyRuntime struct {
+	StrategyID     string     `json:"strategyId"`
+	PID            int        `json:"pid,omitempty"`
+	StartedAt      *time.Time `json:"startedAt,omitempty"`
+	LastHeartbeat  *time.Time `json:"lastHeartbeat,omitempty"`
+	LastError      string     `json:"lastError,omitempty"`
+	ConsecutiveErr int        `json:"consecutiveErrors"`
+	Cycles         int64      `json:"cycles"`
+	DryRun         bool       `json:"dryRun"`
+	KillSwitch     bool       `json:"killSwitch"`
+}
+
+// Fill is a persisted trade execution observed for a managed offer.
+type Fill struct {
+	ID         string    `json:"id"`
+	StrategyID string    `json:"strategyId"`
+	IntentID   string    `json:"intentId,omitempty"`
+	OfferID    int64     `json:"offerId,omitempty"`
+	TradeID    string    `json:"tradeId"`
+	Price      float64   `json:"price"`
+	Amount     float64   `json:"amount"`
+	Counter    float64   `json:"counter"`
+	TxHash     string    `json:"txHash,omitempty"`
+	ExecutedAt time.Time `json:"executedAt"`
+}
+
+// BacktestResult summarizes a deterministic historical strategy replay.
+type BacktestResult struct {
+	StrategyID    string    `json:"strategyId"`
+	StrategyName  string    `json:"strategyName"`
+	BaseAsset     string    `json:"baseAsset"`
+	QuoteAsset    string    `json:"quoteAsset"`
+	Network       Network   `json:"network"`
+	Iterations    int       `json:"iterations"`
+	DesiredOrders int       `json:"desiredOrders"`
+	Buys          int       `json:"buys"`
+	Sells         int       `json:"sells"`
+	Trades        int       `json:"trades"`
+	RealizedPnL   float64   `json:"realizedPnl"`
+	EndingValue   float64   `json:"endingValue"`
+	StartedAt     time.Time `json:"startedAt"`
+	EndedAt       time.Time `json:"endedAt"`
+	CreatedAt     time.Time `json:"createdAt"`
 }

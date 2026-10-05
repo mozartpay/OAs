@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>MozartPay Trading</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Stellar SDEX</div>
+        <h1>Trading Operations</h1>
+      </div>
+      <div class="top-actions">
+        <select class="network-chip network-select" id="network" aria-label="Active network">
+          <option value="stellar-testnet">stellar-testnet</option>
+          <option value="stellar-mainnet">stellar-mainnet</option>
+        </select>
+        <button class="button secondary" id="guideButton" type="button">Guide</button>
+        <button class="button secondary" id="refreshButton" type="button">Refresh</button>
+        <button class="button primary" id="createButton" type="button">Create bot</button>
+      </div>
+    </header>
+
+    <section class="summary-grid" aria-label="Account summary">
+      <article class="metric-card">
+        <span>Active wallet</span>
+        <strong id="walletAddress">Not configured</strong>
+        <select id="walletSelect" class="metric-select hidden" aria-label="Active wallet"></select>
+        <small id="walletBalance">—</small>
+      </article>
+      <article class="metric-card">
+        <span>Running bots</span>
+        <strong id="activeBots">0</strong>
+        <small id="totalBots">0 configured</small>
+      </article>
+      <article class="metric-card">
+        <span>Open offers</span>
+        <strong id="openOffers">0</strong>
+        <small>Managed strategy offers</small>
+      </article>
+      <article class="metric-card">
+        <span>Connection</span>
+        <strong id="connectionState">Offline</strong>
+        <small id="lastRefresh">Waiting for data</small>
+      </article>
+    </section>
+
+    <main>
+      <div id="locked" class="empty-state hidden">
+        <h2>Dashboard session required</h2>
+        <p>Start this interface with <code>mozartpay trade dashboard</code> and open the complete dashboard URL printed by the CLI.</p>
+      </div>
+      <div id="emptyState" class="empty-state hidden">
+        <h2>No trading strategies</h2>
+        <p>Create a buysell market maker or a one-sided sell strategy to begin.</p>
+        <button class="button primary" id="emptyCreateButton" type="button">Create your first bot</button>
+      </div>
+      <div id="botGrid" class="bot-grid" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <dialog id="guideDialog" class="dialog guide-dialog">
+    <div class="dialog-heading">
+      <div>
+        <div class="eyebrow">Strategy guide</div>
+        <h2>Build, test, and operate SDEX bots</h2>
+      </div>
+      <button class="icon-button" id="closeGuide" type="button" aria-label="Close guide">×</button>
+    </div>
+
+    <nav class="guide-nav" aria-label="Guide sections">
+      <a href="#guide-setup">Setup</a>
+      <a href="#guide-recipes">Recipes</a>
+      <a href="#guide-parameters">Parameters</a>
+      <a href="#guide-safety">Safety</a>
+      <a href="#guide-faq">FAQ</a>
+      <a href="#guide-glossary">Glossary</a>
+    </nav>
+
+    <div class="guide-content">
+      <section id="guide-setup" class="guide-section">
+        <h3>Quick setup</h3>
+        <ol class="steps">
+          <li>Select a funded wallet on the same network shown in the dashboard header.</li>
+          <li>Create trustlines for every issued asset in the pair. Native XLM does not need a trustline.</li>
+          <li>Create a bot and choose <strong>Buy/sell market making</strong> or <strong>Sell issued asset</strong>.</li>
+          <li>Keep the first amount small and use <strong>Run once</strong> to inspect the generated order intents.</li>
+          <li>Use <strong>Run dry</strong> to watch heartbeat, cycles, pricing, balances, and reconciliation without submitting offers.</li>
+          <li>When the dry-run output looks correct, use <strong>Run live</strong> and confirm that real SDEX offers may be submitted.</li>
+          <li>Monitor heartbeat, open offers, executions, fills, and the last-error panel.</li>
+        </ol>
+        <p class="guide-note"><strong>Important:</strong> “active” is the strategy’s desired lifecycle state. A bot only places or refreshes offers while a dry-run or live worker is running.</p>
+      </section>
+
+      <section id="guide-recipes" class="guide-section">
+        <h3>Common strategies</h3>
+        <div class="guide-grid">
+          <article class="guide-card">
+            <h4>Conservative XLM/USDC market maker</h4>
+            <p>Quotes one bid and one ask around the SDEX midpoint.</p>
+            <dl>
+              <div><dt>Type</dt><dd>buysell</dd></div>
+              <div><dt>Price feed</dt><dd><code>sdex:XLM/USDC/mid</code></dd></div>
+              <div><dt>Spread</dt><dd>1%</dd></div>
+              <div><dt>Levels</dt><dd>1</dd></div>
+              <div><dt>Max open offers</dt><dd>2 or more</dd></div>
+            </dl>
+          </article>
+          <article class="guide-card">
+            <h4>Laddered market maker</h4>
+            <p>Places multiple bids and asks farther from the reference price.</p>
+            <dl>
+              <div><dt>Type</dt><dd>buysell</dd></div>
+              <div><dt>Spread</dt><dd>0.75%</dd></div>
+              <div><dt>Levels</dt><dd>3</dd></div>
+              <div><dt>Spacing</dt><dd>0.5%</dd></div>
+              <div><dt>Max open offers</dt><dd>6 or more</dd></div>
+            </dl>
+          </article>
+          <article class="guide-card">
+            <h4>Fixed-price asset distribution</h4>
+            <p>Sells an issued asset at a fixed reference price.</p>
+            <dl>
+              <div><dt>Type</dt><dd>sell</dd></div>
+              <div><dt>Base</dt><dd><code>CODE:ISSUER</code></dd></div>
+              <div><dt>Price feed</dt><dd><code>fixed:1.25</code></dd></div>
+              <div><dt>Levels</dt><dd>3</dd></div>
+              <div><dt>Spacing</dt><dd>0.5%</dd></div>
+            </dl>
+          </article>
+          <article class="guide-card">
+            <h4>Market-following sell ladder</h4>
+            <p>Tracks the SDEX ask and sells above it in stages.</p>
+            <dl>
+              <div><dt>Type</dt><dd>sell</dd></div>
+              <div><dt>Price feed</dt><dd><code>sdex:BASE/USDC/ask</code></dd></div>
+              <div><dt>Spread/offset</dt><dd>0.5%</dd></div>
+              <div><dt>Levels</dt><dd>3</dd></div>
+              <div><dt>Spacing</dt><dd>0.5%</dd></div>
+            </dl>
+          </article>
+        </div>
+      </section>
+
+      <section id="guide-parameters" class="guide-section">
+        <h3>Parameters</h3>
+        <div class="parameter-list">
+          <div><strong>Price feed</strong><span>The reference source. Examples: <code>sdex:XLM/USDC/mid</code>, <code>sdex:XLM/USDC/bid</code>, <code>sdex:XLM/USDC/ask</code>, <code>sdex:XLM/USDC/last</code>, or <code>fixed:1.25</code>.</span></div>
+          <div><strong>Amount per level</strong><span>Base-asset amount for each offer level. A buy-side offer also requires enough quote balance to fund it.</span></div>
+          <div><strong>Levels</strong><span>A sell bot creates one offer per level. A buysell bot creates one bid and one ask per level, so it creates <code>levels × 2</code> offers.</span></div>
+          <div><strong>Spread / offset</strong><span>For buysell, this is the total spread around the midpoint. For sell, this is the starting percentage above the reference price.</span></div>
+          <div><strong>Level spacing</strong><span>Additional percentage distance between successive levels.</span></div>
+          <div><strong>Interval seconds</strong><span>Minimum time between reconciliation cycles. Shorter intervals update faster but may submit more transactions.</span></div>
+          <div><strong>Maker only</strong><span>Uses passive sell offers where supported, reducing the chance of immediately crossing the order book.</span></div>
+          <div><strong>Max position</strong><span>Maximum desired base-asset position considered by the risk checks.</span></div>
+          <div><strong>Max open offers</strong><span>Must be at least the number of desired offers: <code>levels</code> for sell, <code>levels × 2</code> for buysell.</span></div>
+        </div>
+      </section>
+
+      <section id="guide-safety" class="guide-section">
+        <h3>Safety checklist</h3>
+        <ul class="guide-list">
+          <li>Verify the network chip before using live mode. Testnet and mainnet strategies are not interchangeable.</li>
+          <li>Confirm issued assets use the intended issuer address; asset codes alone are not unique.</li>
+          <li>Check XLM reserve and spendable balances before increasing size or levels.</li>
+          <li>Set <strong>Max open offers</strong> high enough for all desired offers or the cycle will fail its risk check.</li>
+          <li>Stopping a bot stops future reconciliation, but does not automatically cancel offers that are already open.</li>
+          <li>Use <strong>Cancel offers</strong> to submit an SDEX cancellation transaction for managed offers.</li>
+          <li>The kill switch blocks future reconciliations. Clear it deliberately after reviewing balances and parameters.</li>
+          <li>Dashboard runners stop when this dashboard process exits. For an independent foreground worker, run <code>mozartpay trade run --live &lt;strategy-id&gt;</code>.</li>
+        </ul>
+      </section>
+
+      <section id="guide-faq" class="guide-section">
+        <h3>Frequently asked questions</h3>
+        <details>
+          <summary>Why does an active bot say “Heartbeat: not running”?</summary>
+          <p>Activate only changes the stored strategy status. Start a worker with Run dry, Run live, or the CLI <code>trade run</code> command.</p>
+        </details>
+        <details>
+          <summary>Why are there zero offers after a run?</summary>
+          <p>Check the last-error panel. Common causes are missing trustlines, insufficient balances, an invalid price feed, or fewer allowed open offers than the strategy wants to create.</p>
+        </details>
+        <details>
+          <summary>What is the difference between Run once and Run dry?</summary>
+          <p>Run once performs a single reconciliation and exits. Run dry repeats on the strategy interval until it is paused, stopped, or the dashboard exits.</p>
+        </details>
+        <details>
+          <summary>Does Stop cancel open offers?</summary>
+          <p>No. Stop prevents future reconciliation. Use Cancel offers to remove live orders from the SDEX.</p>
+        </details>
+        <details>
+          <summary>What happens when the dashboard closes?</summary>
+          <p>Dashboard-managed workers stop, while persisted strategy configuration and existing SDEX offers remain. Existing offers stay open until filled or canceled.</p>
+        </details>
+        <details>
+          <summary>How are fills detected?</summary>
+          <p>The worker reads account trades from Horizon and matches them to managed offer IDs. Fills are persisted and used for executions and performance history.</p>
+        </details>
+        <details>
+          <summary>How do I specify an issued asset?</summary>
+          <p>Use <code>CODE:ISSUER</code>, for example <code>USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5</code>.</p>
+        </details>
+      </section>
+
+      <section id="guide-glossary" class="guide-section">
+        <h3>Glossary</h3>
+        <dl class="glossary">
+          <div><dt>Base asset</dt><dd>The asset being bought or sold, shown on the left side of a pair.</dd></div>
+          <div><dt>Quote asset</dt><dd>The asset used to price the base asset, shown on the right side of a pair.</dd></div>
+          <div><dt>Bid</dt><dd>An offer to buy the base asset using the quote asset.</dd></div>
+          <div><dt>Ask</dt><dd>An offer to sell the base asset for the quote asset.</dd></div>
+          <div><dt>Spread</dt><dd>The distance between bid and ask prices.</dd></div>
+          <div><dt>Midpoint</dt><dd>The midpoint between the best bid and best ask.</dd></div>
+          <div><dt>Offer</dt><dd>A resting order on the Stellar decentralized exchange.</dd></div>
+          <div><dt>Passive offer</dt><dd>A sell offer that will not immediately cross an existing bid.</dd></div>
+          <div><dt>Reconciliation</dt><dd>The process of comparing desired offers with live offers, then creating, updating, canceling, or leaving orders unchanged.</dd></div>
+          <div><dt>Trustline</dt><dd>An account authorization required to hold a non-native Stellar asset.</dd></div>
+          <div><dt>Reserve</dt><dd>Locked XLM required by the network for account entries such as trustlines and offers.</dd></div>
+          <div><dt>Fill</dt><dd>An executed portion of an offer recorded as a trade.</dd></div>
+          <div><dt>Orphaned offer</dt><dd>A live pair offer not tracked as managed by the current strategy.</dd></div>
+          <div><dt>Kill switch</dt><dd>A persistent safety flag that prevents future reconciliations until cleared.</dd></div>
+          <div><dt>P&amp;L</dt><dd>Profit and loss calculated from persisted strategy activity.</dd></div>
+        </dl>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog id="strategyDialog" class="dialog">
+    <form id="strategyForm" method="dialog">
+      <div class="dialog-heading">
+        <div>
+          <div class="eyebrow">New strategy</div>
+          <h2>Create trading bot</h2>
+        </div>
+        <button class="icon-button" id="closeDialog" type="button" aria-label="Close">×</button>
+      </div>
+
+      <div class="form-grid">
+        <label>
+          <span class="field-title">Name</span>
+          <input name="name" required maxlength="80" placeholder="XLM market maker" aria-describedby="nameHelp">
+          <small class="field-help" id="nameHelp">Use a recognizable operational name, such as the pair and spread. Example: “XLM/USDC · 1% maker”.</small>
+        </label>
+        <label>
+          <span class="field-title">Type</span>
+          <select name="type" required aria-describedby="typeHelp">
+            <option value="buysell">Buy/sell market making</option>
+            <option value="sell">Sell issued asset</option>
+          </select>
+          <small class="field-help" id="typeHelp">Market making requires base and quote balances. A sell strategy only places asks and requires base-asset inventory.</small>
+        </label>
+        <label>
+          <span class="field-title">Base asset</span>
+          <input name="baseAsset" required value="XLM" placeholder="XLM or CODE:ISSUER" aria-describedby="baseHelp">
+          <small class="field-help" id="baseHelp">Asset being bought or sold. Use <code>XLM</code> for native or <code>CODE:ISSUER</code> for an issued asset.</small>
+        </label>
+        <label>
+          <span class="field-title">Quote asset</span>
+          <input name="quoteAsset" required value="USDC" placeholder="USDC or CODE:ISSUER" aria-describedby="quoteHelp">
+          <small class="field-help" id="quoteHelp">Asset used for pricing. Buy offers need enough spendable quote balance to cover amount × price.</small>
+        </label>
+        <label class="wide">
+          <span class="field-title">Price feed</span>
+          <input name="priceFeed" required value="sdex:XLM/USDC/mid" placeholder="fixed:1.0 or sdex:XLM/USDC/mid" aria-describedby="priceFeedHelp">
+          <small class="field-help" id="priceFeedHelp">Reference price source. Suggested: <code>sdex:XLM/USDC/mid</code> for market making or <code>fixed:1.25</code> for fixed-price distribution.</small>
+        </label>
+        <label>
+          <span class="field-title">Amount per level</span>
+          <input name="amountPerLevel" required type="number" min="0.0000001" step="0.0000001" value="1" aria-describedby="amountHelp">
+          <small class="field-help" id="amountHelp">Base-asset amount on each level. Start small for testing; total desired size is approximately amount × levels.</small>
+        </label>
+        <label>
+          <span class="field-title">Levels</span>
+          <input name="levels" required type="number" min="1" max="20" step="1" value="1" aria-describedby="levelsHelp">
+          <small class="field-help" id="levelsHelp">Sell bots create this many offers. Buysell bots create this many bids and this many asks.</small>
+        </label>
+        <label>
+          <span class="field-title">Spread / offset %</span>
+          <input name="spreadPct" type="number" min="0" max="99" step="0.01" value="1" aria-describedby="spreadHelp">
+          <small class="field-help" id="spreadHelp">For buysell, total distance between the inner bid and ask. For sell, percentage above the reference price for the first offer.</small>
+        </label>
+        <label>
+          <span class="field-title">Level spacing %</span>
+          <input name="levelSpacingPct" type="number" min="0" max="49" step="0.01" value="0.5" aria-describedby="spacingHelp">
+          <small class="field-help" id="spacingHelp">Additional percentage distance between successive levels. A value of 0 stacks all levels at the same offset.</small>
+        </label>
+        <label>
+          <span class="field-title">Interval seconds</span>
+          <input name="intervalSeconds" type="number" min="5" step="1" value="30" aria-describedby="intervalHelp">
+          <small class="field-help" id="intervalHelp">Minimum delay between cycles. Use 30–60 seconds initially; shorter intervals reconcile more often.</small>
+        </label>
+        <label>
+          <span class="field-title">Max position</span>
+          <input name="maxPositionSize" type="number" min="0" step="0.0000001" value="100" aria-describedby="positionHelp">
+          <small class="field-help" id="positionHelp">Maximum desired base-asset position allowed by the risk check. Set it above amount × levels.</small>
+        </label>
+        <label>
+          <span class="field-title">Max open offers</span>
+          <input name="maxOpenTrades" type="number" min="1" max="100" step="1" value="3" aria-describedby="maxOpenHelp">
+          <small class="field-help" id="maxOpenHelp">Suggested minimum: 2 for the current buysell configuration.</small>
+        </label>
+        <label class="checkbox wide field-checkbox">
+          <input name="makerOnly" type="checkbox" aria-describedby="makerHelp">
+          <span>
+            <span class="field-title">Use passive sell offers where supported</span>
+            <small class="field-help" id="makerHelp">Helps avoid immediately crossing the book on sell-side offers. It does not guarantee an offer will remain unfilled.</small>
+          </span>
+        </label>
+      </div>
+
+      <p class="form-note">Bots are created stopped. Start one explicitly after reviewing its parameters and balances.</p>
+      <div class="dialog-actions">
+        <button class="button secondary" id="cancelDialog" type="button">Cancel</button>
+        <button class="button primary" type="submit">Create strategy</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirmDialog" class="dialog small-dialog">
+    <div class="dialog-heading">
+      <div>
+        <div class="eyebrow danger">Confirm action</div>
+        <h2 id="confirmTitle">Continue?</h2>
+      </div>
+    </div>
+    <p id="confirmMessage"></p>
+    <div class="dialog-actions">
+      <button class="button secondary" id="confirmNo" type="button">Cancel</button>
+      <button class="button danger" id="confirmYes" type="button">Confirm</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

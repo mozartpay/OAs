@@ -1,272 +1,498 @@
 package trading
 
 import (
+	"context"
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/ogtechnologies/mozartpay/internal/market"
 	"github.com/ogtechnologies/mozartpay/internal/models"
+	"github.com/ogtechnologies/mozartpay/internal/pool"
 	"github.com/ogtechnologies/mozartpay/internal/swap"
 )
 
-// Service handles trading strategy execution and management
+// Service handles persistent trading strategy lifecycle and execution.
 type Service struct {
-	network     models.Network
-	swapSvc     *swap.Service
-	strategies  map[string]*models.TradingStrategy
-	executions  []models.StrategyExecution
-	performance map[string]*models.StrategyPerformance
-	mu          sync.RWMutex
-	stopCh      chan struct{}
+	network  models.Network
+	swapSvc  *swap.Service
+	market   *market.Client
+	pools    *pool.Service
+	store    *Store
+	storeErr error
+	mu       sync.RWMutex
+	stopCh   chan struct{}
 }
 
-// NewService creates a new trading service
+// NewService creates a new trading service.
 func NewService(network models.Network) *Service {
+	store, err := NewStore()
 	return &Service{
-		network:     network,
-		swapSvc:     swap.NewService(network),
-		strategies:  make(map[string]*models.TradingStrategy),
-		executions:  make([]models.StrategyExecution, 0),
-		performance: make(map[string]*models.StrategyPerformance),
-		stopCh:      make(chan struct{}),
+		network:  network,
+		swapSvc:  swap.NewService(network),
+		market:   market.NewClient(network),
+		pools:    pool.NewService(network),
+		store:    store,
+		storeErr: err,
+		stopCh:   make(chan struct{}),
 	}
 }
 
-// CreateStrategy creates and configures a new trading strategy
-func (s *Service) CreateStrategy(
-	name string,
-	strategyType models.StrategyType,
-	baseAsset, quoteAsset string,
-	params map[string]interface{},
-	riskLimits models.RiskLimits,
-) (*models.TradingStrategy, error) {
-	strategy := &models.TradingStrategy{
-		ID:          generateStrategyID(),
-		Name:        name,
-		Type:        strategyType,
-		Network:     s.network,
-		BaseAsset:   baseAsset,
-		QuoteAsset:  quoteAsset,
-		Parameters:  params,
-		RiskLimits:  riskLimits,
-		Status:      models.StrategyStopped,
-		TotalTrades: 0,
-		TotalProfit: 0,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+// NewServiceWithDependencies creates a service with explicit dependencies.
+func NewServiceWithDependencies(network models.Network, store *Store, marketClient *market.Client, poolSvc *pool.Service) *Service {
+	if marketClient == nil {
+		marketClient = market.NewClient(network)
 	}
+	if poolSvc == nil {
+		poolSvc = pool.NewService(network)
+	}
+	return &Service{
+		network: network,
+		swapSvc: swap.NewService(network),
+		market:  marketClient,
+		pools:   poolSvc,
+		store:   store,
+		stopCh:  make(chan struct{}),
+	}
+}
 
-	// Validate parameters based on strategy type
+// Store returns the persistent store.
+func (s *Service) Store() *Store { return s.store }
+
+// Close releases service resources.
+func (s *Service) Close() error {
+	if s.store != nil {
+		return s.store.Close()
+	}
+	return nil
+}
+
+func (s *Service) storeReady() error {
+	if s.storeErr != nil {
+		return fmt.Errorf("trading store unavailable: %w", s.storeErr)
+	}
+	if s.store == nil {
+		return fmt.Errorf("trading store unavailable")
+	}
+	return nil
+}
+
+// CreateStrategy creates and persists a new trading strategy.
+func (s *Service) CreateStrategy(name string, strategyType models.StrategyType, baseAsset, quoteAsset string, params map[string]interface{}, riskLimits models.RiskLimits) (*models.TradingStrategy, error) {
+	if err := s.storeReady(); err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	strategy := &models.TradingStrategy{
+		ID:         generateStrategyID(),
+		Name:       name,
+		Type:       strategyType,
+		Network:    s.network,
+		BaseAsset:  baseAsset,
+		QuoteAsset: quoteAsset,
+		Parameters: params,
+		RiskLimits: riskLimits,
+		Status:     models.StrategyStopped,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
 	if err := s.validateStrategyParams(strategyType, params); err != nil {
 		return nil, fmt.Errorf("invalid parameters: %w", err)
 	}
-
-	s.mu.Lock()
-	s.strategies[strategy.ID] = strategy
-	s.performance[strategy.ID] = &models.StrategyPerformance{
-		StrategyID:  strategy.ID,
-		LastUpdated: time.Now(),
+	if _, err := market.ParseAsset(baseAsset, s.network); err != nil {
+		return nil, fmt.Errorf("base asset: %w", err)
 	}
-	s.mu.Unlock()
-
+	if _, err := market.ParseAsset(quoteAsset, s.network); err != nil {
+		return nil, fmt.Errorf("quote asset: %w", err)
+	}
+	if err := s.store.SaveStrategy(strategy); err != nil {
+		return nil, err
+	}
+	_ = s.store.SavePerformance(&models.StrategyPerformance{StrategyID: strategy.ID, LastUpdated: now})
 	return strategy, nil
 }
 
-// StartStrategy activates a trading strategy
+// StartStrategy marks a strategy active. Use RunStrategy/RunActive for execution.
 func (s *Service) StartStrategy(strategyID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	strategy, exists := s.strategies[strategyID]
-	if !exists {
+	if err := s.storeReady(); err != nil {
+		return err
+	}
+	strategy, err := s.store.GetStrategy(strategyID)
+	if err != nil {
 		return fmt.Errorf("strategy %s not found", strategyID)
 	}
-
 	if strategy.Status == models.StrategyActive {
 		return fmt.Errorf("strategy already active")
 	}
-
-	now := time.Now()
+	if strategy.Network != s.network {
+		return fmt.Errorf("strategy network %s does not match configured network %s", strategy.Network, s.network)
+	}
+	now := time.Now().UTC()
 	strategy.Status = models.StrategyActive
 	strategy.ActiveSince = &now
 	strategy.UpdatedAt = now
-
-	// Start strategy execution loop based on type
-	go s.runStrategy(strategy)
-
-	return nil
+	return s.store.SaveStrategy(strategy)
 }
 
-// StopStrategy deactivates a trading strategy
+// StopStrategy stops a strategy and clears runtime state.
 func (s *Service) StopStrategy(strategyID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	strategy, exists := s.strategies[strategyID]
-	if !exists {
+	if err := s.storeReady(); err != nil {
+		return err
+	}
+	strategy, err := s.store.GetStrategy(strategyID)
+	if err != nil {
 		return fmt.Errorf("strategy %s not found", strategyID)
 	}
-
 	strategy.Status = models.StrategyStopped
-	strategy.UpdatedAt = time.Now()
+	strategy.UpdatedAt = time.Now().UTC()
 	strategy.ActiveSince = nil
-
-	return nil
+	if err := s.store.SaveStrategy(strategy); err != nil {
+		return err
+	}
+	return s.store.ClearRuntime(strategyID)
 }
 
-// PauseStrategy temporarily pauses a strategy
+// PauseStrategy temporarily pauses a strategy.
 func (s *Service) PauseStrategy(strategyID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	strategy, exists := s.strategies[strategyID]
-	if !exists {
+	if err := s.storeReady(); err != nil {
+		return err
+	}
+	strategy, err := s.store.GetStrategy(strategyID)
+	if err != nil {
 		return fmt.Errorf("strategy %s not found", strategyID)
 	}
-
 	if strategy.Status != models.StrategyActive {
 		return fmt.Errorf("strategy not active")
 	}
-
 	strategy.Status = models.StrategyPaused
-	strategy.UpdatedAt = time.Now()
-
-	return nil
+	strategy.UpdatedAt = time.Now().UTC()
+	return s.store.SaveStrategy(strategy)
 }
 
-// GetStrategy retrieves a strategy by ID
+// GetStrategy retrieves a strategy by ID.
 func (s *Service) GetStrategy(strategyID string) (*models.TradingStrategy, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	strategy, exists := s.strategies[strategyID]
-	if !exists {
+	if err := s.storeReady(); err != nil {
+		return nil, err
+	}
+	strategy, err := s.store.GetStrategy(strategyID)
+	if err != nil {
 		return nil, fmt.Errorf("strategy %s not found", strategyID)
 	}
-
 	return strategy, nil
 }
 
-// GetAllStrategies returns all configured strategies
+// GetAllStrategies returns all configured strategies.
 func (s *Service) GetAllStrategies() []*models.TradingStrategy {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	result := make([]*models.TradingStrategy, 0, len(s.strategies))
-	for _, strategy := range s.strategies {
-		result = append(result, strategy)
+	if s.store == nil {
+		return nil
 	}
-
-	return result
+	strategies, err := s.store.ListStrategies()
+	if err != nil {
+		return nil
+	}
+	return strategies
 }
 
-// GetActiveStrategies returns currently active strategies
+// GetActiveStrategies returns currently active strategies.
 func (s *Service) GetActiveStrategies() []*models.TradingStrategy {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	result := make([]*models.TradingStrategy, 0)
-	for _, strategy := range s.strategies {
+	strategies := s.GetAllStrategies()
+	active := make([]*models.TradingStrategy, 0)
+	for _, strategy := range strategies {
 		if strategy.Status == models.StrategyActive {
-			result = append(result, strategy)
+			active = append(active, strategy)
 		}
 	}
-
-	return result
+	return active
 }
 
-// GetPerformance returns performance metrics for a strategy
-func (s *Service) GetPerformance(strategyID string) (*models.StrategyPerformance, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// RuntimeState returns persisted runtime state for a strategy.
+func (s *Service) RuntimeState(strategyID string) (*models.StrategyRuntime, error) {
+	if err := s.storeReady(); err != nil {
+		return nil, err
+	}
+	return s.store.GetRuntime(strategyID)
+}
 
-	perf, exists := s.performance[strategyID]
-	if !exists {
+// GetPerformance returns performance metrics for a strategy.
+func (s *Service) GetPerformance(strategyID string) (*models.StrategyPerformance, error) {
+	if err := s.storeReady(); err != nil {
+		return nil, err
+	}
+	perf, err := s.store.GetPerformance(strategyID)
+	if err != nil {
 		return nil, fmt.Errorf("no performance data for strategy %s", strategyID)
 	}
-
 	return perf, nil
 }
 
-// GetExecutions returns execution history for a strategy
+// GetExecutions returns execution history for a strategy.
 func (s *Service) GetExecutions(strategyID string, limit int) []models.StrategyExecution {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	result := make([]models.StrategyExecution, 0)
-	count := 0
-
-	// Iterate in reverse to get latest first
-	for i := len(s.executions) - 1; i >= 0; i-- {
-		if s.executions[i].StrategyID == strategyID {
-			result = append(result, s.executions[i])
-			count++
-			if limit > 0 && count >= limit {
-				break
-			}
-		}
+	if s.store == nil {
+		return nil
 	}
-
-	return result
+	executions, err := s.store.ListExecutions(strategyID, limit)
+	if err != nil {
+		return nil
+	}
+	return executions
 }
 
-// DeleteStrategy removes a strategy
+// GetFills returns observed SDEX fills for a strategy.
+func (s *Service) GetFills(strategyID string, limit int) []models.Fill {
+	if s.store == nil {
+		return nil
+	}
+	fills, err := s.store.ListFills(strategyID, limit)
+	if err != nil {
+		return nil
+	}
+	return fills
+}
+
+// DeleteStrategy removes a stopped strategy.
 func (s *Service) DeleteStrategy(strategyID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	strategy, exists := s.strategies[strategyID]
-	if !exists {
-		return fmt.Errorf("strategy %s not found", strategyID)
+	if err := s.storeReady(); err != nil {
+		return err
 	}
-
-	if strategy.Status == models.StrategyActive {
-		return fmt.Errorf("cannot delete active strategy, stop it first")
-	}
-
-	delete(s.strategies, strategyID)
-	delete(s.performance, strategyID)
-
-	return nil
+	return s.store.DeleteStrategy(strategyID)
 }
 
-// runStrategy executes the main strategy loop
-func (s *Service) runStrategy(strategy *models.TradingStrategy) {
-	ticker := time.NewTicker(getStrategyInterval(strategy.Type))
-	defer ticker.Stop()
+// RunOnce executes one strategy iteration. Real resting-order strategies require
+// live=false for dry-run output or live=true for signed transaction submission.
+func (s *Service) RunOnce(ctx context.Context, strategy *models.TradingStrategy, live bool) (*ReconcileReport, error) {
+	if strategy.Status != models.StrategyActive && live {
+		return nil, fmt.Errorf("strategy is not active")
+	}
+	if strategy.Type == models.StrategyBuySell || strategy.Type == models.StrategySell {
+		report, err := s.ReconcileStrategy(ctx, strategy, !live)
+		now := time.Now().UTC()
+		strategy.LastRunAt = &now
+		strategy.UpdatedAt = now
+		_ = s.store.SaveStrategy(strategy)
+		return report, err
+	}
+	if live {
+		return nil, fmt.Errorf("live execution is currently supported only for buysell and sell strategies")
+	}
+	s.executeStrategyIteration(strategy)
+	return &ReconcileReport{StrategyID: strategy.ID, DryRun: true, ExecutedAt: time.Now().UTC()}, nil
+}
 
+// RunStrategy runs one strategy in a foreground loop until ctx is canceled.
+func (s *Service) RunStrategy(ctx context.Context, strategyID string, live bool) error {
+	strategy, err := s.GetStrategy(strategyID)
+	if err != nil {
+		return err
+	}
+	if strategy.Network != s.network {
+		return fmt.Errorf("strategy network %s does not match configured network %s", strategy.Network, s.network)
+	}
+	if strategy.Status != models.StrategyActive {
+		return fmt.Errorf("strategy %s is not active", strategyID)
+	}
+	return s.runLoop(ctx, strategy, live)
+}
+
+// RunActive runs all active strategies for the service network.
+func (s *Service) RunActive(ctx context.Context, live bool) error {
+	var claimed []string
+	defer func() {
+		for _, id := range claimed {
+			_ = s.store.ClearRuntime(id)
+		}
+	}()
 	for {
-		select {
-		case <-ticker.C:
-			s.mu.RLock()
-			currentStatus := strategy.Status
-			s.mu.RUnlock()
-
-			if currentStatus != models.StrategyActive {
-				return
+		strategies := s.GetActiveStrategies()
+		ran := false
+		for _, strategy := range strategies {
+			if strategy.Network != s.network {
+				continue
 			}
-
-			s.executeStrategyIteration(strategy)
-
-		case <-s.stopCh:
-			return
+			fresh, err := s.GetStrategy(strategy.ID)
+			if err != nil || fresh.Status != models.StrategyActive {
+				continue
+			}
+			alreadyClaimed := false
+			for _, id := range claimed {
+				if id == fresh.ID {
+					alreadyClaimed = true
+					break
+				}
+			}
+			if !alreadyClaimed {
+				if err := s.acquireRuntime(fresh.ID, live); err != nil {
+					s.markRuntimeError(fresh.ID, err)
+					continue
+				}
+				claimed = append(claimed, fresh.ID)
+			}
+			bot, err := s.NewBot(fresh)
+			if err != nil {
+				return err
+			}
+			if live && !s.runtimeDue(fresh.ID, bot.Interval()) {
+				continue
+			}
+			report, err := s.RunOnce(ctx, fresh, live)
+			if err != nil {
+				s.markRuntimeError(fresh.ID, err)
+				continue
+			}
+			s.markRuntimeSuccess(fresh.ID, !live)
+			_ = report
+			ran = true
+		}
+		if !ran && len(strategies) == 0 {
+			return fmt.Errorf("no active strategies for %s", s.network)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
 		}
 	}
 }
 
-// executeStrategyIteration runs a single iteration of a strategy
+func (s *Service) runLoop(ctx context.Context, strategy *models.TradingStrategy, live bool) error {
+	if err := s.acquireRuntime(strategy.ID, live); err != nil {
+		return err
+	}
+	defer s.store.ClearRuntime(strategy.ID)
+	for {
+		fresh, err := s.GetStrategy(strategy.ID)
+		if err != nil {
+			return err
+		}
+		if fresh.Status != models.StrategyActive {
+			return nil
+		}
+		interval := 30 * time.Second
+		if bot, err := s.NewBot(fresh); err == nil {
+			interval = bot.Interval()
+		}
+		report, err := s.RunOnce(ctx, fresh, live)
+		if err != nil {
+			s.markRuntimeError(strategy.ID, err)
+			if s.maxErrorsReached(fresh) {
+				fresh.Status = models.StrategyError
+				fresh.UpdatedAt = time.Now().UTC()
+				_ = s.store.SaveStrategy(fresh)
+				return err
+			}
+		} else {
+			_ = report
+			s.markRuntimeSuccess(strategy.ID, !live)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(interval):
+		}
+	}
+}
+
+func (s *Service) acquireRuntime(strategyID string, live bool) error {
+	state, err := s.store.GetRuntime(strategyID)
+	if err == nil && state.LastHeartbeat != nil && state.PID != 0 {
+		if time.Since(*state.LastHeartbeat) < 2*time.Minute {
+			return fmt.Errorf("strategy %s already has a running process (pid %d)", strategyID, state.PID)
+		}
+	}
+	now := time.Now().UTC()
+	return s.store.SaveRuntime(&models.StrategyRuntime{
+		StrategyID:    strategyID,
+		PID:           processID(),
+		StartedAt:     &now,
+		LastHeartbeat: &now,
+		DryRun:        !live,
+	})
+}
+
+func (s *Service) markRuntimeSuccess(strategyID string, dryRun bool) {
+	state, err := s.store.GetRuntime(strategyID)
+	if err != nil {
+		state = &models.StrategyRuntime{StrategyID: strategyID, PID: processID()}
+	}
+	now := time.Now().UTC()
+	state.LastHeartbeat = &now
+	state.LastError = ""
+	state.ConsecutiveErr = 0
+	state.Cycles++
+	state.DryRun = dryRun
+	_ = s.store.SaveRuntime(state)
+}
+
+func (s *Service) markRuntimeError(strategyID string, runErr error) {
+	state, err := s.store.GetRuntime(strategyID)
+	if err != nil {
+		state = &models.StrategyRuntime{StrategyID: strategyID, PID: processID()}
+	}
+	now := time.Now().UTC()
+	state.LastHeartbeat = &now
+	state.LastError = runErr.Error()
+	state.ConsecutiveErr++
+	state.Cycles++
+	_ = s.store.SaveRuntime(state)
+}
+
+func (s *Service) maxErrorsReached(strategy *models.TradingStrategy) bool {
+	maxErrors := paramInt(strategy.Parameters, "max_errors", 5)
+	state, err := s.store.GetRuntime(strategy.ID)
+	return err == nil && state.ConsecutiveErr >= maxErrors
+}
+
+func (s *Service) runtimeDue(strategyID string, interval time.Duration) bool {
+	state, err := s.store.GetRuntime(strategyID)
+	if err != nil || state.LastHeartbeat == nil || state.Cycles == 0 {
+		return true
+	}
+	return time.Since(*state.LastHeartbeat) >= interval
+}
+
+// KillSwitch enables the strategy kill switch and marks it paused.
+func (s *Service) KillSwitch(strategyID string) error {
+	strategy, err := s.GetStrategy(strategyID)
+	if err != nil {
+		return err
+	}
+	state, _ := s.store.GetRuntime(strategyID)
+	if state == nil {
+		state = &models.StrategyRuntime{StrategyID: strategyID}
+	}
+	state.KillSwitch = true
+	now := time.Now().UTC()
+	state.LastHeartbeat = &now
+	if err := s.store.SaveRuntime(state); err != nil {
+		return err
+	}
+	strategy.Status = models.StrategyPaused
+	strategy.UpdatedAt = now
+	return s.store.SaveStrategy(strategy)
+}
+
+// ClearKillSwitch disables the kill switch.
+func (s *Service) ClearKillSwitch(strategyID string) error {
+	state, err := s.store.GetRuntime(strategyID)
+	if err != nil {
+		state = &models.StrategyRuntime{StrategyID: strategyID}
+	}
+	state.KillSwitch = false
+	return s.store.SaveRuntime(state)
+}
+
+// executeStrategyIteration runs a signal-only compatibility iteration.
 func (s *Service) executeStrategyIteration(strategy *models.TradingStrategy) {
 	defer func() {
 		if r := recover(); r != nil {
-			s.mu.Lock()
 			strategy.Status = models.StrategyError
-			s.mu.Unlock()
+			strategy.UpdatedAt = time.Now().UTC()
+			_ = s.store.SaveStrategy(strategy)
 		}
 	}()
 
 	var signal *models.StrategySignal
-
 	switch strategy.Type {
 	case models.StrategyArbitrage:
 		signal = s.executeArbitrageStrategy(strategy)
@@ -287,91 +513,105 @@ func (s *Service) executeStrategyIteration(strategy *models.TradingStrategy) {
 	if signal != nil && signal.Action != models.TradeHold {
 		s.executeSignal(strategy, signal)
 	}
-
-	s.mu.Lock()
-	now := time.Now()
+	now := time.Now().UTC()
 	strategy.LastRunAt = &now
-	s.mu.Unlock()
+	strategy.UpdatedAt = now
+	_ = s.store.SaveStrategy(strategy)
 }
 
-// executeSignal processes a trading signal
+// executeSignal records a dry-run signal execution.
 func (s *Service) executeSignal(strategy *models.TradingStrategy, signal *models.StrategySignal) {
 	execution := models.StrategyExecution{
 		ID:           generateExecutionID(),
 		StrategyID:   strategy.ID,
 		StrategyType: strategy.Type,
-		Timestamp:    time.Now(),
+		Timestamp:    time.Now().UTC(),
 		Action:       signal.Action,
 		BaseAsset:    strategy.BaseAsset,
 		QuoteAsset:   strategy.QuoteAsset,
 		Amount:       signal.Amount,
 		Price:        signal.Price,
 		Value:        signal.Amount * signal.Price,
-		Status:       models.ExecutionPending,
+		Status:       models.ExecutionSkipped,
+		TxHash:       "dry-run",
 		Metadata:     signal.Metadata,
 	}
-
-	// TODO: Execute actual trade via swap service
-	// For now, mark as executed (simulation mode)
-	execution.Status = models.ExecutionExecuted
-	execution.TxHash = "simulated"
-
-	// Calculate P&L if closing position
 	if signal.Action == models.TradeSell || signal.Action == models.TradeExit {
 		execution.ProfitLoss = s.calculateProfitLoss(strategy, signal)
-		execution.ProfitPct = (execution.ProfitLoss / execution.Value) * 100
+		execution.ProfitPct = (execution.ProfitLoss / math.Max(execution.Value, 1e-7)) * 100
 	}
-
-	s.mu.Lock()
-	s.executions = append(s.executions, execution)
+	_ = s.store.SaveExecution(&execution)
 	strategy.TotalTrades++
 	strategy.TotalProfit += execution.ProfitLoss
-
-	// Update performance metrics
-	perf := s.performance[strategy.ID]
-	perf.TotalTrades = strategy.TotalTrades
-	if execution.ProfitLoss > 0 {
-		perf.WinningTrades++
-	} else if execution.ProfitLoss < 0 {
-		perf.LosingTrades++
-	}
-	if perf.TotalTrades > 0 {
-		perf.WinRate = float64(perf.WinningTrades) / float64(perf.TotalTrades) * 100
-	}
-	perf.TotalReturn = strategy.TotalProfit
-	perf.LastUpdated = time.Now()
-	s.mu.Unlock()
+	strategy.UpdatedAt = time.Now().UTC()
+	_ = s.store.SaveStrategy(strategy)
+	s.updatePerformance(strategy.ID)
 }
 
-// calculateProfitLoss calculates P&L for a closing trade
 func (s *Service) calculateProfitLoss(strategy *models.TradingStrategy, signal *models.StrategySignal) float64 {
-	// Get previous buy executions for this strategy
 	var totalBuyValue, totalBuyAmount float64
-
-	s.mu.RLock()
-	for i := len(s.executions) - 1; i >= 0; i-- {
-		exec := s.executions[i]
-		if exec.StrategyID == strategy.ID && exec.Action == models.TradeBuy {
+	executions := s.GetExecutions(strategy.ID, 500)
+	for _, exec := range executions {
+		if exec.Action == models.TradeBuy {
 			totalBuyValue += exec.Value
 			totalBuyAmount += exec.Amount
 		}
 	}
-	s.mu.RUnlock()
-
 	if totalBuyAmount == 0 {
 		return 0
 	}
-
 	avgBuyPrice := totalBuyValue / totalBuyAmount
-	sellValue := signal.Amount * signal.Price
-	buyValue := signal.Amount * avgBuyPrice
-
-	return sellValue - buyValue
+	return signal.Amount*signal.Price - signal.Amount*avgBuyPrice
 }
 
-// validateStrategyParams validates parameters for each strategy type
+func (s *Service) updatePerformance(strategyID string) {
+	strategy, err := s.store.GetStrategy(strategyID)
+	if err != nil {
+		return
+	}
+	executions, _ := s.store.ListExecutions(strategyID, 1000)
+	perf := &models.StrategyPerformance{StrategyID: strategyID, LastUpdated: time.Now().UTC()}
+	var profits, losses float64
+	for _, execution := range executions {
+		if execution.Status != models.ExecutionExecuted && execution.Status != models.ExecutionSkipped {
+			continue
+		}
+		perf.TotalTrades++
+		if execution.ProfitLoss > 0 {
+			perf.WinningTrades++
+			profits += execution.ProfitLoss
+		} else if execution.ProfitLoss < 0 {
+			perf.LosingTrades++
+			losses += math.Abs(execution.ProfitLoss)
+		}
+	}
+	if perf.TotalTrades > 0 {
+		perf.WinRate = float64(perf.WinningTrades) / float64(perf.TotalTrades) * 100
+	}
+	if perf.WinningTrades > 0 {
+		perf.AvgProfit = profits / float64(perf.WinningTrades)
+	}
+	if perf.LosingTrades > 0 {
+		perf.AvgLoss = losses / float64(perf.LosingTrades)
+	}
+	if losses > 0 {
+		perf.ProfitFactor = profits / losses
+	}
+	perf.TotalReturn = strategy.TotalProfit
+	_ = s.store.SavePerformance(perf)
+}
+
+// validateStrategyParams validates parameters for each strategy type.
 func (s *Service) validateStrategyParams(strategyType models.StrategyType, params map[string]interface{}) error {
 	switch strategyType {
+	case models.StrategyBuySell:
+		if paramFloat(params, "amount_per_level", paramFloat(params, "amount", 0)) <= 0 {
+			return fmt.Errorf("buysell requires amount_per_level")
+		}
+	case models.StrategySell:
+		if paramFloat(params, "amount_per_level", paramFloat(params, "amount", 0)) <= 0 {
+			return fmt.Errorf("sell requires amount_per_level")
+		}
 	case models.StrategyGridTrading:
 		if _, ok := params["upper_price"]; !ok {
 			return fmt.Errorf("grid trading requires upper_price parameter")
@@ -404,12 +644,6 @@ func (s *Service) validateStrategyParams(strategyType models.StrategyType, param
 			return fmt.Errorf("momentum requires long_ma_periods parameter")
 		}
 	case models.StrategyScalping:
-		// RSI period is optional (defaults to 14)
-		// Stochastic parameters are optional with defaults:
-		// - stochastic_k_period: 14
-		// - stochastic_d_period: 3
-		// - stochastic_overbought: 80
-		// - stochastic_oversold: 20
 		if kPeriod, ok := params["stochastic_k_period"]; ok {
 			if kp, ok := kPeriod.(float64); !ok || kp < 5 || kp > 50 {
 				return fmt.Errorf("stochastic_k_period must be a number between 5 and 50")
@@ -424,27 +658,6 @@ func (s *Service) validateStrategyParams(strategyType models.StrategyType, param
 	return nil
 }
 
-// getStrategyInterval returns the execution interval for a strategy type
-func getStrategyInterval(strategyType models.StrategyType) time.Duration {
-	switch strategyType {
-	case models.StrategyScalping:
-		return 30 * time.Second
-	case models.StrategyArbitrage:
-		return 5 * time.Second
-	case models.StrategyGridTrading:
-		return 1 * time.Minute
-	case models.StrategyMeanReversion, models.StrategyMomentum:
-		return 5 * time.Minute
-	case models.StrategyDCA:
-		return 1 * time.Hour
-	case models.StrategyBreakout:
-		return 15 * time.Minute
-	default:
-		return 5 * time.Minute
-	}
-}
-
-// Helper functions
 func generateStrategyID() string {
 	return fmt.Sprintf("strategy_%d", time.Now().UnixNano())
 }
@@ -453,56 +666,45 @@ func generateExecutionID() string {
 	return fmt.Sprintf("exec_%d", time.Now().UnixNano())
 }
 
-// bollingerBands calculates Bollinger Bands for mean reversion
+func processID() int {
+	return os.Getpid()
+}
+
+// bollingerBands calculates Bollinger Bands for mean reversion.
 func bollingerBands(prices []float64, periods int, stdDevMultiplier float64) (upper, middle, lower float64) {
 	if len(prices) < periods {
 		return 0, 0, 0
 	}
-
-	// Calculate SMA (middle band)
 	sum := 0.0
 	for i := len(prices) - periods; i < len(prices); i++ {
 		sum += prices[i]
 	}
 	middle = sum / float64(periods)
-
-	// Calculate standard deviation
 	varianceSum := 0.0
 	for i := len(prices) - periods; i < len(prices); i++ {
 		diff := prices[i] - middle
 		varianceSum += diff * diff
 	}
 	stdDev := math.Sqrt(varianceSum / float64(periods))
-
-	upper = middle + (stdDev * stdDevMultiplier)
-	lower = middle - (stdDev * stdDevMultiplier)
-
-	return upper, middle, lower
+	return middle + stdDev*stdDevMultiplier, middle, middle - stdDev*stdDevMultiplier
 }
 
-// simpleMovingAverage calculates SMA
 func simpleMovingAverage(prices []float64, periods int) float64 {
 	if len(prices) < periods {
 		return 0
 	}
-
 	sum := 0.0
 	for i := len(prices) - periods; i < len(prices); i++ {
 		sum += prices[i]
 	}
-
 	return sum / float64(periods)
 }
 
-// rsi calculates Relative Strength Index
 func rsi(prices []float64, periods int) float64 {
 	if len(prices) < periods+1 {
-		return 50 // Neutral
+		return 50
 	}
-
-	gains := 0.0
-	losses := 0.0
-
+	gains, losses := 0.0, 0.0
 	for i := len(prices) - periods; i < len(prices); i++ {
 		change := prices[i] - prices[i-1]
 		if change > 0 {
@@ -511,35 +713,24 @@ func rsi(prices []float64, periods int) float64 {
 			losses -= change
 		}
 	}
-
 	avgGain := gains / float64(periods)
 	avgLoss := losses / float64(periods)
-
 	if avgLoss == 0 {
 		return 100
 	}
-
-	rs := avgGain / avgLoss
-	return 100 - (100 / (1 + rs))
+	return 100 - (100 / (1 + avgGain/avgLoss))
 }
 
-// stochastic calculates Stochastic Oscillator %K and %D lines
 func stochastic(prices []float64, kPeriod, dPeriod int) (k, d float64) {
 	if len(prices) < kPeriod+dPeriod {
-		return 50, 50 // Neutral values
+		return 50, 50
 	}
-
-	// Calculate %K values
 	kValues := make([]float64, dPeriod)
 	for i := 0; i < dPeriod; i++ {
 		startIdx := len(prices) - kPeriod - dPeriod + i
 		endIdx := len(prices) - dPeriod + i
-
-		// Find lowest low and highest high in the kPeriod window
-		lowest := prices[startIdx]
-		highest := prices[startIdx]
+		lowest, highest := prices[startIdx], prices[startIdx]
 		currentClose := prices[endIdx]
-
 		for j := startIdx; j <= endIdx; j++ {
 			if prices[j] < lowest {
 				lowest = prices[j]
@@ -548,25 +739,16 @@ func stochastic(prices []float64, kPeriod, dPeriod int) (k, d float64) {
 				highest = prices[j]
 			}
 		}
-
-		// Calculate %K for this period
-		range_ := highest - lowest
-		if range_ == 0 {
+		rangeValue := highest - lowest
+		if rangeValue == 0 {
 			kValues[i] = 50
 		} else {
-			kValues[i] = ((currentClose - lowest) / range_) * 100
+			kValues[i] = ((currentClose - lowest) / rangeValue) * 100
 		}
 	}
-
-	// %K is the last calculated value
 	k = kValues[len(kValues)-1]
-
-	// %D is the SMA of %K values
-	dSum := 0.0
 	for _, val := range kValues {
-		dSum += val
+		d += val
 	}
-	d = dSum / float64(dPeriod)
-
-	return k, d
+	return k, d / float64(dPeriod)
 }
