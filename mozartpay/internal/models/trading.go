@@ -40,6 +40,7 @@ type TradingStrategy struct {
 	Description string                 `json:"description"`
 	Status      StrategyStatus         `json:"status"`
 	Network     Network                `json:"network"`
+	Wallet      string                 `json:"wallet,omitempty"`
 	BaseAsset   string                 `json:"baseAsset"`
 	QuoteAsset  string                 `json:"quoteAsset"`
 	Parameters  map[string]interface{} `json:"parameters"`

@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS strategies (
 	description TEXT,
 	status TEXT NOT NULL,
 	network TEXT NOT NULL,
+	wallet TEXT NOT NULL DEFAULT '',
 	base_asset TEXT NOT NULL,
 	quote_asset TEXT NOT NULL,
 	parameters_json TEXT NOT NULL,
@@ -167,7 +168,42 @@ CREATE TABLE IF NOT EXISTS kv_state (
 	value TEXT NOT NULL
 );
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.migrate()
+}
+
+// migrate applies incremental schema changes for databases created by older
+// versions (the CREATE TABLE statements above are IF NOT EXISTS and do not
+// add columns to existing tables).
+func (s *Store) migrate() error {
+	var hasWallet bool
+	rows, err := s.db.Query(`PRAGMA table_info(strategies)`)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var cid int
+		var name, colType string
+		var notNull int
+		var dflt interface{}
+		var pk int
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dflt, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		if name == "wallet" {
+			hasWallet = true
+		}
+	}
+	rows.Close()
+	if !hasWallet {
+		if _, err := s.db.Exec(`ALTER TABLE strategies ADD COLUMN wallet TEXT NOT NULL DEFAULT ''`); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Close closes the database.
@@ -189,29 +225,30 @@ func (s *Store) SaveStrategy(strategy *models.TradingStrategy) error {
 		return err
 	}
 	_, err = s.db.Exec(`INSERT INTO strategies
-		(id,name,type,description,status,network,base_asset,quote_asset,parameters_json,risk_limits_json,created_at,updated_at,last_run_at,total_trades,total_profit,active_since)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		(id,name,type,description,status,network,wallet,base_asset,quote_asset,parameters_json,risk_limits_json,created_at,updated_at,last_run_at,total_trades,total_profit,active_since)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 		name=excluded.name,type=excluded.type,description=excluded.description,status=excluded.status,network=excluded.network,
+		wallet=excluded.wallet,
 		base_asset=excluded.base_asset,quote_asset=excluded.quote_asset,parameters_json=excluded.parameters_json,
 		risk_limits_json=excluded.risk_limits_json,updated_at=excluded.updated_at,last_run_at=excluded.last_run_at,
 		total_trades=excluded.total_trades,total_profit=excluded.total_profit,active_since=excluded.active_since`,
 		strategy.ID, strategy.Name, string(strategy.Type), strategy.Description, string(strategy.Status), string(strategy.Network),
-		strategy.BaseAsset, strategy.QuoteAsset, string(params), string(risk), formatTime(strategy.CreatedAt), formatTime(strategy.UpdatedAt),
+		strategy.Wallet, strategy.BaseAsset, strategy.QuoteAsset, string(params), string(risk), formatTime(strategy.CreatedAt), formatTime(strategy.UpdatedAt),
 		timePtrString(strategy.LastRunAt), strategy.TotalTrades, strategy.TotalProfit, timePtrString(strategy.ActiveSince))
 	return err
 }
 
 // GetStrategy loads a strategy by ID.
 func (s *Store) GetStrategy(id string) (*models.TradingStrategy, error) {
-	row := s.db.QueryRow(`SELECT id,name,type,description,status,network,base_asset,quote_asset,parameters_json,risk_limits_json,
+	row := s.db.QueryRow(`SELECT id,name,type,description,status,network,wallet,base_asset,quote_asset,parameters_json,risk_limits_json,
 		created_at,updated_at,last_run_at,total_trades,total_profit,active_since FROM strategies WHERE id=?`, id)
 	return scanStrategy(row)
 }
 
 // ListStrategies returns all persisted strategies.
 func (s *Store) ListStrategies() ([]*models.TradingStrategy, error) {
-	rows, err := s.db.Query(`SELECT id,name,type,description,status,network,base_asset,quote_asset,parameters_json,risk_limits_json,
+	rows, err := s.db.Query(`SELECT id,name,type,description,status,network,wallet,base_asset,quote_asset,parameters_json,risk_limits_json,
 		created_at,updated_at,last_run_at,total_trades,total_profit,active_since FROM strategies ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
@@ -486,7 +523,7 @@ func scanStrategy(row scanner) (*models.TradingStrategy, error) {
 	var paramsJSON, riskJSON string
 	var created, updated string
 	var lastRun, active sql.NullString
-	if err := row.Scan(&strategy.ID, &strategy.Name, &strategyType, &strategy.Description, &status, &network,
+	if err := row.Scan(&strategy.ID, &strategy.Name, &strategyType, &strategy.Description, &status, &network, &strategy.Wallet,
 		&strategy.BaseAsset, &strategy.QuoteAsset, &paramsJSON, &riskJSON, &created, &updated, &lastRun,
 		&strategy.TotalTrades, &strategy.TotalProfit, &active); err != nil {
 		return nil, err

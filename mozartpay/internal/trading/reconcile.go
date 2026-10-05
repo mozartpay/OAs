@@ -51,16 +51,16 @@ func (s *Service) ReconcileStrategy(ctx context.Context, strategy *models.Tradin
 	}
 	report := &ReconcileReport{StrategyID: strategy.ID, DryRun: dryRun, ExecutedAt: time.Now().UTC()}
 	if strategy.Network != s.network {
-		return report, fmt.Errorf("strategy network %s does not match service network %s", strategy.Network, s.network)
+		return s.failReconcile(strategy, report, fmt.Errorf("strategy network %s does not match service network %s", strategy.Network, s.network))
 	}
 
 	bot, err := s.NewBot(strategy)
 	if err != nil {
-		return report, err
+		return s.failReconcile(strategy, report, err)
 	}
 	desired, quote, err := bot.GenerateOrders(ctx)
 	if err != nil {
-		return report, err
+		return s.failReconcile(strategy, report, err)
 	}
 	report.Desired = len(desired)
 	if quote != nil {
@@ -71,13 +71,21 @@ func (s *Service) ReconcileStrategy(ctx context.Context, strategy *models.Tradin
 	account, accountErr := s.activeAccount(ctx)
 	if accountErr != nil {
 		if !dryRun {
-			return report, accountErr
+			return s.failReconcile(strategy, report, accountErr)
 		}
 		report.Errors = append(report.Errors, fmt.Sprintf("wallet checks skipped in dry-run: %v", accountErr))
 	}
+	if account != nil && !dryRun && strategy.Wallet != "" && account.AccountID != strategy.Wallet {
+		return s.failReconcile(strategy, report, fmt.Errorf("active wallet %s does not match strategy wallet %s", account.AccountID, strategy.Wallet))
+	}
+	if account != nil && !dryRun {
+		if err := s.syncFills(ctx, strategy, account.AccountID); err != nil {
+			report.Errors = append(report.Errors, fmt.Sprintf("fill sync: %v", err))
+		}
+	}
 	if account != nil {
 		if err := s.checkRisk(ctx, strategy, account, desired); err != nil {
-			return report, err
+			return s.failReconcile(strategy, report, err)
 		}
 	}
 
@@ -87,23 +95,23 @@ func (s *Service) ReconcileStrategy(ctx context.Context, strategy *models.Tradin
 	} else {
 		pairBase, err = market.ParseAsset(strategy.BaseAsset, strategy.Network)
 		if err != nil {
-			return report, err
+			return s.failReconcile(strategy, report, err)
 		}
 		pairQuote, err = market.ParseAsset(strategy.QuoteAsset, strategy.Network)
 		if err != nil {
-			return report, err
+			return s.failReconcile(strategy, report, err)
 		}
 	}
 	var liveOffers []market.OpenOffer
 	if account != nil {
 		liveOffers, err = s.market.OpenOffersForPair(ctx, account.AccountID, pairBase, pairQuote)
 		if err != nil {
-			return report, err
+			return s.failReconcile(strategy, report, err)
 		}
 	}
 	managed, err := s.store.ListManagedOffers(strategy.ID)
 	if err != nil {
-		return report, err
+		return s.failReconcile(strategy, report, err)
 	}
 
 	priceTolerance := paramFloat(strategy.Parameters, "price_tolerance_pct", 0.10) / 100
@@ -151,7 +159,7 @@ func (s *Service) ReconcileStrategy(ctx context.Context, strategy *models.Tradin
 		record.UpdatedAt = time.Now().UTC()
 		record.LastError = ""
 		if err := s.store.SaveManagedOffer(record); err != nil {
-			return report, err
+			return s.failReconcile(strategy, report, err)
 		}
 
 		if record.OfferID == 0 {
@@ -191,6 +199,11 @@ func (s *Service) ReconcileStrategy(ctx context.Context, strategy *models.Tradin
 			cancelSpec.OfferID = record.OfferID
 			cancelSpec.Amount = 0
 			actions = append(actions, OfferAction{Kind: "cancel", IntentID: intent.IntentID, Side: intent.Side, OfferID: record.OfferID, Spec: cancelSpec, Managed: record})
+		}
+		if record.OfferID != 0 && !liveOK && (record.Status == "open" || record.Status == "submitted") {
+			record.Status = "closed"
+			record.UpdatedAt = time.Now().UTC()
+			_ = s.store.SaveManagedOffer(record)
 		}
 		spec := specFromIntent(intent)
 		actions = append(actions, OfferAction{Kind: "create", IntentID: intent.IntentID, Side: intent.Side, Price: intent.Price, Amount: intent.Amount, Spec: spec, Managed: record})
@@ -253,8 +266,10 @@ func (s *Service) ReconcileStrategy(ctx context.Context, strategy *models.Tradin
 					_ = s.store.SaveManagedOffer(action.Managed)
 				}
 			}
-			_ = s.recordReconcileExecution(strategy, report, models.ExecutionFailed, err.Error())
-			return report, err
+			if syncErr := s.syncFills(ctx, strategy, account.AccountID); syncErr != nil {
+				report.Errors = append(report.Errors, syncErr.Error())
+			}
+			return s.failReconcile(strategy, report, err)
 		}
 		report.TxHashes = append(report.TxHashes, result.Hash)
 		s.applySubmissionResult(strategy.ID, actions, result)
@@ -348,10 +363,26 @@ func (s *Service) checkRisk(ctx context.Context, strategy *models.TradingStrateg
 			return fmt.Errorf("buy exposure %.7f exceeds max_position_size %.7f", buyBase, strategy.RiskLimits.MaxPositionSize)
 		}
 	}
-	if sellBase > market.Spendable(*account, desired[0].BaseAsset, minReserve)+1e-7 {
+	// Spendable subtracts all selling liabilities, including this strategy's own
+	// open/submitted offers. Add those back so the desired footprint is checked
+	// against true capacity rather than double-counting existing offers.
+	lockedBase, lockedQuote := 0.0, 0.0
+	if managed, err := s.store.ListManagedOffers(strategy.ID); err == nil {
+		for _, offer := range managed {
+			if offer.Status != "open" && offer.Status != "submitted" {
+				continue
+			}
+			if offer.Side == models.OrderSideSell {
+				lockedBase += offer.Amount
+			} else {
+				lockedQuote += offer.Amount * offer.Price
+			}
+		}
+	}
+	if sellBase > market.Spendable(*account, desired[0].BaseAsset, minReserve)+lockedBase+1e-7 {
 		return fmt.Errorf("insufficient spendable %s: need %.7f", desired[0].BaseAsset.Code, sellBase)
 	}
-	if buyQuote > market.Spendable(*account, desired[0].QuoteAsset, minReserve)+1e-7 {
+	if buyQuote > market.Spendable(*account, desired[0].QuoteAsset, minReserve)+lockedQuote+1e-7 {
 		return fmt.Errorf("insufficient spendable %s: need %.7f", desired[0].QuoteAsset.Code, buyQuote)
 	}
 	if strategy.RiskLimits.MaxDailyLoss > 0 {
@@ -611,6 +642,15 @@ func (s *Service) CancelStrategyOffers(ctx context.Context, strategyID string, a
 	if strategy.Network != s.network {
 		return nil, fmt.Errorf("strategy network %s does not match service network %s", strategy.Network, s.network)
 	}
+	if strategy.Wallet != "" {
+		active, err := wallet.NewService().GetActiveWallet()
+		if err != nil {
+			return nil, fmt.Errorf("active wallet: %w", err)
+		}
+		if active.Address != strategy.Wallet {
+			return nil, fmt.Errorf("active wallet %s does not match strategy wallet %s", active.Address, strategy.Wallet)
+		}
+	}
 	live, err := s.LiveOffers(ctx, strategy)
 	if err != nil {
 		return nil, err
@@ -697,6 +737,12 @@ func (s *Service) CancelOfferByID(ctx context.Context, offerID int64) (*market.S
 
 // SubmitResult aliases market submission results for command output.
 type SubmitResult = market.SubmitResult
+
+func (s *Service) failReconcile(strategy *models.TradingStrategy, report *ReconcileReport, cause error) (*ReconcileReport, error) {
+	report.Errors = append(report.Errors, cause.Error())
+	_ = s.recordReconcileExecution(strategy, report, models.ExecutionFailed, cause.Error())
+	return report, cause
+}
 
 func (s *Service) recordReconcileExecution(strategy *models.TradingStrategy, report *ReconcileReport, status models.ExecutionStatus, errText string) error {
 	execution := &models.StrategyExecution{

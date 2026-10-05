@@ -12,6 +12,7 @@ import (
 	"github.com/ogtechnologies/mozartpay/internal/models"
 	"github.com/ogtechnologies/mozartpay/internal/pool"
 	"github.com/ogtechnologies/mozartpay/internal/swap"
+	"github.com/ogtechnologies/mozartpay/internal/wallet"
 )
 
 // Service handles persistent trading strategy lifecycle and execution.
@@ -97,6 +98,9 @@ func (s *Service) CreateStrategy(name string, strategyType models.StrategyType, 
 		Status:     models.StrategyStopped,
 		CreatedAt:  now,
 		UpdatedAt:  now,
+	}
+	if active, err := wallet.NewService().GetActiveWallet(); err == nil && active != nil {
+		strategy.Wallet = active.Address
 	}
 	if err := s.validateStrategyParams(strategyType, params); err != nil {
 		return nil, fmt.Errorf("invalid parameters: %w", err)

@@ -606,9 +606,13 @@ func (s *Server) overview() (*Overview, error) {
 
 	svc := trading.NewService(models.Network(network))
 	defer svc.Close()
+	activeAddress := overview.Wallet.Address
 	strategies := svc.GetAllStrategies()
 	for _, strategy := range strategies {
 		if string(strategy.Network) != network {
+			continue
+		}
+		if strategy.Wallet != "" && strategy.Wallet != activeAddress {
 			continue
 		}
 		bot := BotSummary{Strategy: strategy, Offers: []*models.ManagedOffer{}}

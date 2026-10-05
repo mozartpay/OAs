@@ -205,7 +205,7 @@ function renderBot(bot, expanded = false) {
         <div>
           <div class="eyebrow">${escapeHTML(strategy.type || "strategy")}</div>
           <h3>${escapeHTML(strategy.name || strategy.id)}</h3>
-          <div class="pair">${escapeHTML(strategy.baseAsset || "")}/${escapeHTML(strategy.quoteAsset || "")} · ${escapeHTML(strategy.network || "")}</div>
+          <div class="pair">${escapeHTML(strategy.baseAsset || "")}/${escapeHTML(strategy.quoteAsset || "")} · ${escapeHTML(strategy.network || "")}${strategy.wallet ? ` · ${escapeHTML(shortAddress(strategy.wallet))}` : ""}</div>
         </div>
         <span class="status-pill ${escapeHTML(status)}">${escapeHTML(status)}</span>
       </div>
