@@ -35,7 +35,7 @@ data:
     output: stdout
     fields:
       service: mozartpay
-      version: "0.1.0-mvp"
+      version: "0.2.0"
 ---
 apiVersion: v1
 kind: Secret

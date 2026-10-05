@@ -1,6 +1,6 @@
 # MozartPay CLI — Orchestrated Agreements
 
-> **v0.1.0-mvp** · Built in Go · Pure-Go Soroban RPC · OG Technologies EU
+> **v0.2.0** · Built in Go · Pure-Go Soroban RPC · OG Technologies EU
 
 A command-line interface for the MozartPay Orchestrated Agreements platform — enabling
 DID-attested, VC-linked payments and asset issuance on Stellar with OA scoring,

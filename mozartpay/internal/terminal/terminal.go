@@ -17,6 +17,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ogtechnologies/mozartpay/internal/config"
 	"github.com/ogtechnologies/mozartpay/internal/integrations"
+	"github.com/ogtechnologies/mozartpay/internal/models"
+	"github.com/ogtechnologies/mozartpay/internal/trading"
 	"github.com/ogtechnologies/mozartpay/internal/wallet"
 )
 
@@ -111,12 +113,18 @@ var (
 
 // Key bindings
 type keyMap struct {
-	Quit   key.Binding
-	Help   key.Binding
-	Reload key.Binding
-	Tab    key.Binding
-	Up     key.Binding
-	Down   key.Binding
+	Quit    key.Binding
+	Help    key.Binding
+	Reload  key.Binding
+	Tab     key.Binding
+	Up      key.Binding
+	Down    key.Binding
+	Pause   key.Binding
+	Stop    key.Binding
+	Kill    key.Binding
+	Cancel  key.Binding
+	Confirm key.Binding
+	Reject  key.Binding
 }
 
 var keys = keyMap{
@@ -144,15 +152,40 @@ var keys = keyMap{
 		key.WithKeys("down", "j"),
 		key.WithHelp("↓", "scroll down"),
 	),
+	Pause: key.NewBinding(
+		key.WithKeys("p"),
+		key.WithHelp("p", "pause/resume bot"),
+	),
+	Stop: key.NewBinding(
+		key.WithKeys("s"),
+		key.WithHelp("s", "stop bot"),
+	),
+	Kill: key.NewBinding(
+		key.WithKeys("x"),
+		key.WithHelp("x", "kill switch"),
+	),
+	Cancel: key.NewBinding(
+		key.WithKeys("c"),
+		key.WithHelp("c", "cancel bot offers"),
+	),
+	Confirm: key.NewBinding(
+		key.WithKeys("y"),
+		key.WithHelp("y", "confirm"),
+	),
+	Reject: key.NewBinding(
+		key.WithKeys("n", "esc"),
+		key.WithHelp("n", "reject"),
+	),
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Quit, k.Help, k.Reload, k.Up, k.Down}
+	return []key.Binding{k.Quit, k.Help, k.Reload, k.Tab, k.Up, k.Down}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Quit, k.Help, k.Reload, k.Tab, k.Up, k.Down},
+		{k.Pause, k.Stop, k.Kill, k.Cancel, k.Confirm, k.Reject},
 	}
 }
 
@@ -182,6 +215,24 @@ type NewsArticle struct {
 	Relevance   float64
 }
 
+// BotData is the normalized state shown in the bots panel.
+type BotData struct {
+	ID           string
+	Name         string
+	Type         string
+	Pair         string
+	Status       models.StrategyStatus
+	Network      string
+	OpenOffers   int
+	SpreadPct    float64
+	BaseBalance  float64
+	QuoteBalance float64
+	Profit       float64
+	LastError    string
+	Heartbeat    *time.Time
+	KillSwitch   bool
+}
+
 // Model for bubbletea
 type Model struct {
 	cfg         *config.Config
@@ -196,8 +247,13 @@ type Model struct {
 	tickers    []TickerData
 	wallet     WalletData
 	news       []NewsArticle
+	bots       []BotData
 	walletErr  string
 	newsClient *integrations.FinnhubClient
+
+	// Bot controls
+	selectedBot   int
+	pendingCancel bool
 
 	// Viewport for scrolling in small views
 	viewport    viewport.Model
@@ -223,6 +279,7 @@ func NewModel(cfg *config.Config) Model {
 		ctx:         ctx,
 		cancel:      cancel,
 		news:        []NewsArticle{},
+		bots:        []BotData{},
 		wallet:      WalletData{Balances: make(map[string]float64)},
 		newsClient:  integrations.NewFinnhubClient(cfg.Integrations.FinnhubAPIKey),
 		viewport:    vp,
@@ -261,6 +318,7 @@ type refreshMsg struct{}
 func (m Model) refreshData() tea.Msg {
 	m.loadWalletData()
 	m.loadTickers()
+	m.loadBots()
 	m.loadNews()
 	m.lastRefresh = time.Now()
 	return refreshMsg{}
@@ -328,6 +386,126 @@ func (m *Model) loadWalletData() {
 
 func (m *Model) loadTickers() {
 	m.tickers = fetchLivePrices()
+}
+
+func (m *Model) loadBots() {
+	svc := trading.NewService(models.Network(m.cfg.Network))
+	defer svc.Close()
+	strategies := svc.GetAllStrategies()
+	bots := make([]BotData, 0, len(strategies))
+	for _, strategy := range strategies {
+		data := BotData{
+			ID:      strategy.ID,
+			Name:    strategy.Name,
+			Type:    string(strategy.Type),
+			Pair:    strategy.BaseAsset + "/" + strategy.QuoteAsset,
+			Status:  strategy.Status,
+			Network: string(strategy.Network),
+			Profit:  strategy.TotalProfit,
+		}
+		if runtime, err := svc.RuntimeState(strategy.ID); err == nil && runtime != nil {
+			data.LastError = runtime.LastError
+			data.Heartbeat = runtime.LastHeartbeat
+			data.KillSwitch = runtime.KillSwitch
+		}
+		if offers, err := svc.ManagedOffers(strategy.ID); err == nil {
+			minAsk, maxBid := 0.0, 0.0
+			for _, offer := range offers {
+				if offer.Status != "open" && offer.Status != "submitted" && offer.Status != "desired" {
+					continue
+				}
+				data.OpenOffers++
+				if offer.Side == models.OrderSideSell && (minAsk == 0 || offer.Price < minAsk) {
+					minAsk = offer.Price
+				}
+				if offer.Side == models.OrderSideBuy && offer.Price > maxBid {
+					maxBid = offer.Price
+				}
+			}
+			if minAsk > 0 && maxBid > 0 {
+				mid := (minAsk + maxBid) / 2
+				if mid > 0 {
+					data.SpreadPct = (minAsk - maxBid) / mid * 100
+				}
+			}
+		}
+		baseCode := strings.ToUpper(strings.Split(strategy.BaseAsset, ":")[0])
+		quoteCode := strings.ToUpper(strings.Split(strategy.QuoteAsset, ":")[0])
+		if baseCode == "NATIVE" {
+			baseCode = "XLM"
+		}
+		if quoteCode == "NATIVE" {
+			quoteCode = "XLM"
+		}
+		data.BaseBalance = m.wallet.Balances[baseCode]
+		data.QuoteBalance = m.wallet.Balances[quoteCode]
+		bots = append(bots, data)
+	}
+	m.bots = bots
+	if m.selectedBot >= len(m.bots) {
+		m.selectedBot = 0
+	}
+}
+
+// fetchLivePrices gets live crypto prices from CoinGecko and EUR/USD from Frankfurter
+// Always returns exactly 5 tickers: XLM, BTC, ETH, USDC, EUR
+func (m *Model) selectedStrategyID() string {
+	if m.selectedBot < 0 || m.selectedBot >= len(m.bots) {
+		return ""
+	}
+	return m.bots[m.selectedBot].ID
+}
+
+func (m *Model) toggleSelectedBotPause() {
+	id := m.selectedStrategyID()
+	if id == "" {
+		return
+	}
+	svc := trading.NewService(models.Network(m.cfg.Network))
+	defer svc.Close()
+	strategy, err := svc.GetStrategy(id)
+	if err != nil {
+		return
+	}
+	if strategy.Status == models.StrategyActive {
+		_ = svc.PauseStrategy(id)
+	} else if strategy.Status == models.StrategyPaused {
+		_ = svc.StartStrategy(id)
+	}
+}
+
+func (m *Model) stopSelectedBot() {
+	id := m.selectedStrategyID()
+	if id == "" {
+		return
+	}
+	svc := trading.NewService(models.Network(m.cfg.Network))
+	defer svc.Close()
+	_ = svc.StopStrategy(id)
+}
+
+func (m *Model) toggleSelectedBotKillSwitch() {
+	id := m.selectedStrategyID()
+	if id == "" {
+		return
+	}
+	svc := trading.NewService(models.Network(m.cfg.Network))
+	defer svc.Close()
+	if m.bots[m.selectedBot].KillSwitch {
+		_ = svc.ClearKillSwitch(id)
+	} else {
+		_ = svc.KillSwitch(id)
+	}
+}
+
+func (m *Model) cancelSelectedBotOffers() {
+	id := m.selectedStrategyID()
+	if id == "" {
+		return
+	}
+	svc := trading.NewService(models.Network(m.cfg.Network))
+	defer svc.Close()
+	_, _ = svc.CancelStrategyOffers(m.ctx, id, false)
 }
 
 // fetchLivePrices gets live crypto prices from CoinGecko and EUR/USD from Frankfurter
@@ -451,6 +629,18 @@ func (m *Model) loadNews() {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.pendingCancel {
+			switch {
+			case key.Matches(msg, m.keys.Confirm):
+				m.pendingCancel = false
+				m.cancelSelectedBotOffers()
+				m.loadBots()
+				return m, nil
+			case key.Matches(msg, m.keys.Reject):
+				m.pendingCancel = false
+				return m, nil
+			}
+		}
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			m.cancel()
@@ -460,19 +650,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Reload):
 			m.loadWalletData()
 			m.loadTickers()
+			m.loadBots()
 			m.loadNews()
 			m.lastRefresh = time.Now()
 			return m, nil
 		case key.Matches(msg, m.keys.Tab):
-			m.activePanel = (m.activePanel + 1) % 3
+			m.activePanel = (m.activePanel + 1) % 4
 		case key.Matches(msg, m.keys.Up):
-			if m.useViewport {
+			if m.activePanel == 3 && m.selectedBot > 0 {
+				m.selectedBot--
+			} else if m.useViewport {
 				m.viewport.LineUp(1)
 			}
 			return m, nil
 		case key.Matches(msg, m.keys.Down):
-			if m.useViewport {
+			if m.activePanel == 3 && m.selectedBot < len(m.bots)-1 {
+				m.selectedBot++
+			} else if m.useViewport {
 				m.viewport.LineDown(1)
+			}
+			return m, nil
+		case key.Matches(msg, m.keys.Pause):
+			m.toggleSelectedBotPause()
+			m.loadBots()
+			return m, nil
+		case key.Matches(msg, m.keys.Stop):
+			m.stopSelectedBot()
+			m.loadBots()
+			return m, nil
+		case key.Matches(msg, m.keys.Kill):
+			m.toggleSelectedBotKillSwitch()
+			m.loadBots()
+			return m, nil
+		case key.Matches(msg, m.keys.Cancel):
+			if len(m.bots) > 0 {
+				m.pendingCancel = true
 			}
 			return m, nil
 		}
@@ -502,11 +714,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// First load - load everything
 			m.loadWalletData()
 			m.loadTickers()
+			m.loadBots()
 			m.loadNews()
 			m.lastRefresh = time.Now()
 		} else {
-			// Subsequent ticks - only refresh market data (lightweight)
+			// Subsequent ticks - only refresh market and local bot data
 			m.loadTickers()
+			m.loadBots()
 		}
 		// Return tickCmd to schedule next tick
 		return m, tickCmd()
@@ -573,6 +787,10 @@ func (m Model) renderScrollableView() string {
 	content = append(content, walletContent)
 	content = append(content, "")
 
+	botContent := m.renderBotsPanel(availableWidth, panelHeight)
+	content = append(content, botContent)
+	content = append(content, "")
+
 	newsContent := m.renderNewsPanel(availableWidth, panelHeight)
 	content = append(content, newsContent)
 
@@ -593,7 +811,7 @@ func (m Model) renderHeader() string {
 	left := headerStyle.Render(" MOZARTPAY TERMINAL ")
 	center := lipgloss.NewStyle().
 		Foreground(colorGray).
-		Render(fmt.Sprintf("v0.1.0-mvp | Last update: %s", m.lastRefresh.Format("15:04:05")))
+		Render(fmt.Sprintf("v%s | Last update: %s", config.Version, m.lastRefresh.Format("15:04:05")))
 	right := lipgloss.NewStyle().
 		Foreground(colorGreen).
 		Bold(true).
@@ -644,31 +862,30 @@ func (m Model) renderPanels(height int) string {
 }
 
 func (m Model) renderThreeColumn(height, availableWidth int) string {
-	// Three equal columns with 2-char spacing
-	panelWidth := (availableWidth - 4) / 3
+	// Four compact columns with 2-char spacing.
+	panelWidth := (availableWidth - 6) / 4
 
-	// Ticker panel
-	tickerContent := m.renderTickerPanel(panelWidth, height)
 	tickerPanel := m.getPanelStyle(0).
 		Width(panelWidth).
 		Height(height).
-		Render(tickerContent)
+		Render(m.renderTickerPanel(panelWidth, height))
 
-	// Wallet panel
-	walletContent := m.renderWalletPanel(panelWidth, height)
 	walletPanel := m.getPanelStyle(1).
 		Width(panelWidth).
 		Height(height).
-		Render(walletContent)
+		Render(m.renderWalletPanel(panelWidth, height))
 
-	// News panel
-	newsContent := m.renderNewsPanel(panelWidth, height)
 	newsPanel := m.getPanelStyle(2).
 		Width(panelWidth).
 		Height(height).
-		Render(newsContent)
+		Render(m.renderNewsPanel(panelWidth, height))
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, tickerPanel, "  ", walletPanel, "  ", newsPanel)
+	botsPanel := m.getPanelStyle(3).
+		Width(panelWidth).
+		Height(height).
+		Render(m.renderBotsPanel(panelWidth, height))
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, tickerPanel, "  ", walletPanel, "  ", newsPanel, "  ", botsPanel)
 }
 
 func (m Model) renderTwoColumn(height, availableWidth int) string {
@@ -692,40 +909,45 @@ func (m Model) renderTwoColumn(height, availableWidth int) string {
 
 	leftStack := lipgloss.JoinVertical(lipgloss.Left, tickerPanel, walletPanel)
 
-	// Right side - news full height
-	newsContent := m.renderNewsPanel(rightWidth, height)
+	// Right side - bots and news stacked
+	botsPanel := m.getPanelStyle(3).
+		Width(rightWidth).
+		Height(leftHeight).
+		Render(m.renderBotsPanel(rightWidth, leftHeight))
 	newsPanel := m.getPanelStyle(2).
 		Width(rightWidth).
-		Height(height).
-		Render(newsContent)
+		Height(height - leftHeight).
+		Render(m.renderNewsPanel(rightWidth, height-leftHeight))
+	rightStack := lipgloss.JoinVertical(lipgloss.Left, botsPanel, newsPanel)
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, leftStack, "  ", newsPanel)
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftStack, "  ", rightStack)
 }
 
 func (m Model) renderSingleColumn(height, availableWidth int) string {
-	// Stack all panels vertically
-	panelHeight := (height - 2) / 3
+	// Stack all panels vertically.
+	panelHeight := (height - 3) / 4
+	if panelHeight < 6 {
+		panelHeight = 6
+	}
 
-	tickerContent := m.renderTickerPanel(availableWidth, panelHeight)
 	tickerPanel := m.getPanelStyle(0).
 		Width(availableWidth).
 		Height(panelHeight).
-		Render(tickerContent)
-
-	walletContent := m.renderWalletPanel(availableWidth, panelHeight)
+		Render(m.renderTickerPanel(availableWidth, panelHeight))
 	walletPanel := m.getPanelStyle(1).
 		Width(availableWidth).
 		Height(panelHeight).
-		Render(walletContent)
-
-	newsHeight := height - 2*panelHeight - 2
-	newsContent := m.renderNewsPanel(availableWidth, newsHeight)
+		Render(m.renderWalletPanel(availableWidth, panelHeight))
+	botsPanel := m.getPanelStyle(3).
+		Width(availableWidth).
+		Height(panelHeight).
+		Render(m.renderBotsPanel(availableWidth, panelHeight))
 	newsPanel := m.getPanelStyle(2).
 		Width(availableWidth).
-		Height(newsHeight).
-		Render(newsContent)
+		Height(height - 3*panelHeight).
+		Render(m.renderNewsPanel(availableWidth, height-3*panelHeight))
 
-	return lipgloss.JoinVertical(lipgloss.Left, tickerPanel, walletPanel, newsPanel)
+	return lipgloss.JoinVertical(lipgloss.Left, tickerPanel, walletPanel, botsPanel, newsPanel)
 }
 
 func (m Model) getPanelStyle(index int) lipgloss.Style {
@@ -893,6 +1115,57 @@ func (m Model) renderWalletPanel(width, height int) string {
 		Height(height - 2).
 		Render(strings.Join(lines, "\n"))
 }
+func (m Model) renderBotsPanel(width, height int) string {
+	var lines []string
+	lines = append(lines, panelTitleStyle.Render("🤖 BOTS"))
+	lines = append(lines, "")
+	if len(m.bots) == 0 {
+		lines = append(lines, compactLabelStyle.Render("No trading strategies"))
+		lines = append(lines, compactLabelStyle.Render("Create one with 'trade strategy'"))
+	} else {
+		for i, bot := range m.bots {
+			indicator := "○"
+			statusStyle := compactValueStyle
+			switch bot.Status {
+			case models.StrategyActive:
+				indicator, statusStyle = "●", lipgloss.NewStyle().Foreground(colorGreen).Bold(true)
+			case models.StrategyPaused:
+				indicator, statusStyle = "◐", lipgloss.NewStyle().Foreground(colorGold).Bold(true)
+			case models.StrategyError:
+				indicator, statusStyle = "●", lipgloss.NewStyle().Foreground(colorRed).Bold(true)
+			}
+			if i == m.selectedBot {
+				indicator = "▶"
+			}
+			name := bot.Name
+			maxName := width - 16
+			if len(name) > maxName && maxName > 4 {
+				name = name[:maxName-3] + "..."
+			}
+			lines = append(lines, statusStyle.Render(fmt.Sprintf("%s %s %s", indicator, name, bot.Status)))
+			if width > 45 {
+				lines = append(lines, compactLabelStyle.Render(fmt.Sprintf("  %s | %d offers | spread %.2f%%", bot.Pair, bot.OpenOffers, bot.SpreadPct)))
+				lines = append(lines, compactLabelStyle.Render(fmt.Sprintf("  bal %.4f / %.4f | P&L %.4f", bot.BaseBalance, bot.QuoteBalance, bot.Profit)))
+				if bot.LastError != "" {
+					errText := bot.LastError
+					if len(errText) > width-8 {
+						errText = errText[:width-11] + "..."
+					}
+					lines = append(lines, lipgloss.NewStyle().Foreground(colorRed).Render("  "+errText))
+				}
+			}
+		}
+	}
+	if m.pendingCancel && len(m.bots) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, lipgloss.NewStyle().Foreground(colorRed).Bold(true).Render(fmt.Sprintf("Cancel offers for %s? y/n", m.bots[m.selectedBot].Name)))
+	} else if len(m.bots) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, compactLabelStyle.Render("p pause/resume · s stop · x kill · c cancel"))
+	}
+	return lipgloss.NewStyle().Height(height - 2).Render(strings.Join(lines, "\n"))
+}
+
 func (m Model) renderNewsPanel(width, height int) string {
 	var lines []string
 	lines = append(lines, panelTitleStyle.Render("📰 RECENT NEWS"))

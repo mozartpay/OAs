@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/ogtechnologies/mozartpay/internal/config"
 )
 
 // ANSI color codes
@@ -78,7 +80,7 @@ func PrintBanner() {
 	fmt.Printf("  %s %s  %s\n",
 		Teal_("Orchestrated Agreements CLI"),
 		Dim_("|"),
-		Dim_("v0.1.0-mvp · OG Technologies EU"),
+		Dim_(fmt.Sprintf("v%s · OG Technologies EU", config.Version)),
 	)
 	fmt.Println(Dim_("  ─────────────────────────────────────────────────────"))
 	fmt.Println()

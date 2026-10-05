@@ -1,7 +1,7 @@
 BINARY     = mozartpay
 MODULE     = github.com/ogtechnologies/mozartpay
 CMD        = ./cmd/mozartpay
-VERSION    = 0.1.0-mvp
+VERSION    = 0.2.0
 BUILD_DIR  = ./dist
 GOFLAGS    =
 
@@ -33,6 +33,11 @@ install:
 test:
 	@echo "→ Running tests..."
 	@go test ./... -v
+
+## e2e: Run live testnet e2e tests (deploys contracts, uses friendbot)
+e2e:
+	@echo "→ Running testnet e2e tests..."
+	@go test -tags e2e ./e2e/ -v -timeout 15m
 
 ## lint: Run go vet + golangci-lint
 lint:

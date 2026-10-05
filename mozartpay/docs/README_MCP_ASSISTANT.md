@@ -75,7 +75,7 @@ Type 'help' for commands or 'quit' to exit
 
 🤔 > status
 📊 **System Status:**
-**version:** 0.1.0-mvp
+**version:** 0.2.0
 **network:** stellar-testnet
 **active_wallet:** 
 **wallet_connected:** false

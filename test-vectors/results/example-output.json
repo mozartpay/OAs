@@ -4,7 +4,7 @@
   "environment": {
     "runnerVersion": "1.0.0",
     "schemaVersion": "1.0.0",
-    "mozartpayVersion": "v0.1.0-mvp",
+    "mozartpayVersion": "v0.2.0",
     "os": "macOS",
     "goVersion": "go1.22.0"
   },

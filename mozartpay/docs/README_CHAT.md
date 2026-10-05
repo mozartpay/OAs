@@ -92,7 +92,7 @@ Try asking: 'show my wallet balance' or 'swap 100 XLM to USDC'
 
 💬 You: system status
 🤖 Assistant: **System Status:**
-**version:** 0.1.0-mvp
+**version:** 0.2.0
 **network:** stellar-testnet
 **active_wallet:** GD...5678
 **wallet_connected:** true

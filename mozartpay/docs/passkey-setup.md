@@ -15,7 +15,7 @@ wwWallet is a WebAuthn-based wallet solution that uses hardware-backed passkeys 
 - **Browser**: Modern browser with WebAuthn support
 
 ### Software Requirements
-- MozartPay CLI v0.1.0-mvp or later
+- MozartPay CLI v0.2.0 or later
 - Go 1.22+ (if building from source)
 
 ## Quick Start

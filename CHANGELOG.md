@@ -7,6 +7,15 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `trade dashboard`: network switcher (stellar-testnet/stellar-mainnet) persisted to config, active-wallet picker, `--token` flag / `MOZARTPAY_DASHBOARD_TOKEN` for a fixed session token reused across restarts
+- Dashboard overview is network-scoped: wallet list and bot list are filtered to the selected network, and switching networks auto-activates a matching wallet
+
+### Fixed
+
+- `config.Version` is now a `var` so `-ldflags -X` injection from the Makefile takes effect; hardcoded `v0.1.0-mvp` strings in `internal/ui` and `internal/terminal` now render `config.Version`
+
 ## [0.2.0] - 2026-09-20
 
 ### Added

@@ -12,10 +12,13 @@ import (
 const (
 	DefaultConfigDir   = ".mozartpay"
 	DefaultConfigFile  = "config.json"
-	Version            = "0.2.0"
 	AppName            = "MozartPay CLI"
 	DefaultHTTPTimeout = 30 * time.Second
 )
+
+// Version is the CLI release version. It is a var (not const) so the Makefile
+// can inject it via -ldflags "-X .../internal/config.Version=...".
+var Version = "0.2.0"
 
 type Config struct {
 	Network               string            `json:"network"`
