@@ -84,7 +84,7 @@ func newInitCmd(cfg *config.Config) *Command {
 			fmt.Printf("  %s %s\n", ui.Gold_("$"), ui.Dim_("mozartpay wallet connect --provider wwwallet --network stellar-testnet"))
 			fmt.Printf("  %s %s\n", ui.Gold_("$"), ui.Dim_("mozartpay wallet fund --network stellar-testnet"))
 			fmt.Printf("  %s %s\n", ui.Gold_("$"), ui.Dim_("mozartpay asset create-ft --name \"MyToken\" --symbol MTK --with-score --with-carbon"))
-			fmt.Printf("  %s %s\n", ui.Gold_("$"), ui.Dim_("mozartpay pay send --to <address> --amount 10 --asset USDC --rail x402"))
+			fmt.Printf("  %s %s\n", ui.Gold_("$"), ui.Dim_("mozartpay pay x402 --resource <https-url> --network stellar-testnet"))
 			fmt.Printf("  %s %s\n", ui.Gold_("$"), ui.Dim_("mozartpay report generate --vc-attach"))
 			fmt.Println()
 

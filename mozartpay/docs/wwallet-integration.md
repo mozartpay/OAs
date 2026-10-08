@@ -196,8 +196,8 @@ const createOptions = {
 # Request FX quote
 ./mozartpay pay quote --from XLM --to EUR --amount 1000
 
-# HTTP 402 payment
-./mozartpay pay x402 --url https://api.example.com/resource --price 0.5
+# x402-protected HTTP resource (dry run first)
+./mozartpay pay x402 --resource https://api.example.com/resource --dry-run
 ```
 
 ### DID Integration
@@ -452,7 +452,7 @@ func (s *Service) UpdateWalletBalance(address string) (*models.Account, error)
 # Payment operations
 ./mozartpay pay send --to <addr> --amount <amt> [--asset <asset>]
 ./mozartpay pay quote --from <src> --to <dst> --amount <amt>
-./mozartpay pay x402 --url <url> --price <price>
+./mozartpay pay x402 --resource <https-url> [--dry-run] [--max-atomic-amount <amount>]
 
 # DID operations
 ./mozartpay did create --method <method>

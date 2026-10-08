@@ -78,21 +78,8 @@ func (s *Service) Pay(
 
 // ── x402 ──────────────────────────────────────
 
-func (s *Service) payX402(from, to, amount, asset string, net models.Network, memo string) (*models.Payment, error) {
-	fmt.Printf("[DEBUG] payX402 called: from=%s to=%s amount=%s\n", from, to, amount)
-	return s.payDirect(from, to, amount, asset, net, memo)
-}
-
-func (s *Service) BuildX402Request(resourceURL, asset, payer, payee string, price float64) *models.X402Request {
-	return &models.X402Request{
-		ResourceURL: resourceURL,
-		Price:       price,
-		Asset:       asset,
-		Payer:       payer,
-		Payee:       payee,
-		Nonce:       mpCrypto.RandomHex(16),
-		ExpiresAt:   time.Now().Add(5 * time.Minute).UTC(),
-	}
+func (s *Service) payX402(_, _, _, _ string, _ models.Network, _ string) (*models.Payment, error) {
+	return nil, fmt.Errorf("x402 is an HTTP payment protocol, not a recipient-address transfer; use 'mozartpay pay x402 --resource <url>' or 'mozartpay pay send --rail x402 --resource <url>'")
 }
 
 // ── Tempo ─────────────────────────────────────

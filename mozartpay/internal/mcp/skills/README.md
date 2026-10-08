@@ -95,7 +95,7 @@ mozartpay/internal/mcp/skills/
 | pay_quote | pay_quote | Get payment quote across rails | Medium |
 | pay_request | pay_request | Generate payment request/QR code | Medium |
 | pay_history | pay_history | Get payment history | Low |
-| pay_x402 | pay_x402 | Execute x402 micropayment | Medium |
+| pay_x402 | pay_x402 | Execute an x402 v2 HTTP payment | Medium |
 | pay_zk | pay_zk | Execute zero-knowledge payment | High |
 | pay_rails | pay_rails | Show payment rail information | Low |
 

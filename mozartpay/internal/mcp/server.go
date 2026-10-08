@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -150,6 +151,9 @@ func (s *Server) serveStdio() error {
 
 // handleMessage processes a single JSON-RPC message
 func (s *Server) handleMessage(msg *JSONRPCMessage) error {
+	if msg.ID == nil && strings.HasPrefix(msg.Method, "notifications/") {
+		return nil
+	}
 	switch msg.Method {
 	case "initialize":
 		return s.handleInitialize(msg)
@@ -476,7 +480,7 @@ func (s *Server) handleMessageHTTP(msg *JSONRPCMessage) *JSONRPCMessage {
 	switch msg.Method {
 	case "initialize":
 		return s.handleInitializeHTTP(msg)
-	case "initialized":
+	case "initialized", "notifications/initialized":
 		return s.handleInitializedHTTP(msg)
 	case "tools/list":
 		return s.handleToolsListHTTP(msg)

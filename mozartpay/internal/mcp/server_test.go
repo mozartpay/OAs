@@ -47,6 +47,32 @@ func TestMCPServerInitialize(t *testing.T) {
 	}
 }
 
+func TestMCPServerIgnoresInitializedNotification(t *testing.T) {
+	server := NewServer(config.DefaultConfig())
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
+	server.stdin = stdin
+	server.stdout = stdout
+
+	notification := JSONRPCMessage{
+		JSONRPC: "2.0",
+		Method:  "notifications/initialized",
+	}
+	data, err := json.Marshal(notification)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdin.Write(data)
+	stdin.WriteByte('\n')
+
+	if err := server.serveStdio(); err != nil {
+		t.Fatal(err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no response for initialized notification, got %s", stdout.String())
+	}
+}
+
 func TestMCPServerToolsList(t *testing.T) {
 	cfg := config.DefaultConfig()
 	server := NewServer(cfg)
@@ -83,6 +109,33 @@ func TestMCPServerToolsList(t *testing.T) {
 		if !strings.Contains(output, tool) {
 			t.Errorf("Expected tool %s not found in response", tool)
 		}
+	}
+}
+
+func TestGetAtomicAmountArg(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   interface{}
+		want    string
+		wantErr bool
+	}{
+		{name: "string", value: "100000", want: "100000"},
+		{name: "number", value: float64(100000), want: "100000"},
+		{name: "empty string", value: "", wantErr: true},
+		{name: "fraction", value: 1.5, wantErr: true},
+		{name: "invalid type", value: true, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getAtomicAmountArg(map[string]interface{}{"max_atomic_amount": tt.value}, "max_atomic_amount")
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("getAtomicAmountArg() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Fatalf("getAtomicAmountArg() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

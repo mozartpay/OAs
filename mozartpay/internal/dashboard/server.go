@@ -37,7 +37,18 @@ type Server struct {
 	mu      sync.Mutex
 	cfgMu   sync.RWMutex
 	runners map[string]*strategyRunner
+
+	balanceMu      sync.Mutex
+	balanceCache   map[string]liveBalance
+	balanceCacheAt time.Time
 }
+
+type liveBalance struct {
+	balance string
+	funded  bool
+}
+
+const balanceCacheTTL = 30 * time.Second
 
 type strategyRunner struct {
 	cancel context.CancelFunc
@@ -563,6 +574,63 @@ func (s *Server) stopRunners() {
 	}
 }
 
+// applyLiveBalances refreshes wallet balances from Horizon, cached for
+// balanceCacheTTL since SSE rebuilds the overview every few seconds.
+func (s *Server) applyLiveBalances(overview *Overview, walletSvc *wallet.Service, network string) {
+	s.balanceMu.Lock()
+	stale := s.balanceCacheAt.IsZero() || time.Since(s.balanceCacheAt) > balanceCacheTTL
+	if stale {
+		s.balanceCacheAt = time.Now()
+	}
+	cache := s.balanceCache
+	s.balanceMu.Unlock()
+
+	if stale {
+		addresses := make([]string, 0, len(overview.Wallets)+1)
+		if overview.Wallet.Address != "" {
+			addresses = append(addresses, overview.Wallet.Address)
+		}
+		for _, opt := range overview.Wallets {
+			addresses = append(addresses, opt.Address)
+		}
+		fresh := make(map[string]liveBalance, len(addresses))
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+		for _, address := range addresses {
+			wg.Add(1)
+			go func(addr string) {
+				defer wg.Done()
+				if bal, funded, err := walletSvc.FetchBalanceFromNetwork(addr, models.Network(network)); err == nil {
+					mu.Lock()
+					fresh[addr] = liveBalance{bal, funded}
+					mu.Unlock()
+				}
+			}(address)
+		}
+		wg.Wait()
+		s.balanceMu.Lock()
+		if s.balanceCache == nil {
+			s.balanceCache = make(map[string]liveBalance)
+		}
+		for address, b := range fresh {
+			s.balanceCache[address] = b
+		}
+		cache = s.balanceCache
+		s.balanceMu.Unlock()
+	}
+
+	for i, opt := range overview.Wallets {
+		if b, ok := cache[opt.Address]; ok {
+			overview.Wallets[i].Balance = b.balance
+			overview.Wallets[i].Funded = b.funded
+		}
+	}
+	if b, ok := cache[overview.Wallet.Address]; ok {
+		overview.Wallet.Balance = b.balance
+		overview.Wallet.Funded = b.funded
+	}
+}
+
 // network returns the configured network under a read lock.
 func (s *Server) network() string {
 	s.cfgMu.RLock()
@@ -603,6 +671,8 @@ func (s *Server) overview() (*Overview, error) {
 			Funded:  account.Funded,
 		}
 	}
+
+	s.applyLiveBalances(overview, walletSvc, network)
 
 	svc := trading.NewService(models.Network(network))
 	defer svc.Close()

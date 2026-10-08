@@ -34,6 +34,15 @@ func createBooleanSchema(description string, defaultValue bool) map[string]inter
 	}
 }
 
+// createObjectSchema creates a JSON Schema for an object parameter.
+func createObjectSchema(description string, required bool) map[string]interface{} {
+	return map[string]interface{}{
+		"type":                 "object",
+		"description":          description,
+		"additionalProperties": map[string]interface{}{"type": "string"},
+	}
+}
+
 // createEnumSchema creates a JSON Schema for an enum parameter
 func createEnumSchema(description string, values []string, defaultValue string) map[string]interface{} {
 	schema := map[string]interface{}{
@@ -419,13 +428,18 @@ func (s *Server) registerPayTools() {
 	// pay_x402 - x402 micropayments
 	s.RegisterTool(Tool{
 		Name:        "pay_x402",
-		Description: "Execute payment via x402 micropayment protocol",
+		Description: "Execute a Stellar x402 v2 HTTP payment against a protected resource",
 		InputSchema: buildInputSchema(map[string]interface{}{
-			"to":      createStringSchema("Recipient address (required)", true),
-			"amount":  createStringSchema("Amount to send (required)", true),
-			"asset":   createStringSchema("Asset code (required)", true),
-			"execute": createBooleanSchema("Execute payment (dry-run if false)", false),
-		}, []string{"to", "amount", "asset"}),
+			"resource":          createStringSchema("HTTP resource URL that returns an x402 v2 challenge", true),
+			"method":            createStringSchema("HTTP method for the resource request", false),
+			"body":              createStringSchema("Optional HTTP request body", false),
+			"headers":           createObjectSchema("Optional request headers", false),
+			"network":           createEnumSchema("Stellar network", []string{"stellar-testnet", "stellar-mainnet"}, "stellar-testnet"),
+			"payer":             createStringSchema("Payer Stellar address (defaults to active wallet)", false),
+			"max_atomic_amount": createStringSchema("Optional spend cap in token atomic units", false),
+			"rpc_url":           createStringSchema("Optional Soroban RPC URL override", false),
+			"execute":           createBooleanSchema("Send the paid retry after signing (dry-run if false)", false),
+		}, []string{"resource"}),
 	}, s.handlePayX402)
 
 	// pay_zk - Zero-knowledge payments

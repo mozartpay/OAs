@@ -14,15 +14,12 @@ Comprehensive payment capabilities for the MozartPay platform, including multi-r
 - `destination` (string, required): Recipient address
 - `amount` (string, required): Amount to send
 - `asset` (string): Asset code (default: XLM)
-- `rail` (enum): direct | x402 | tempo | zk (default: direct)
 - `memo` (string): Optional payment memo
-- `network` (string): Network (default: stellar-testnet)
-- `execute` (boolean): Execute payment (default: true)
+- `execute` (boolean): Execute payment (dry-run if false)
 
 **Natural Language Patterns**:
 - "send 100 XLM to GD...ADDRESS"
 - "pay 50 USDC to my friend"
-- "transfer 200 XLM using x402"
 - "send payment with memo 'rent payment'"
 - "make private payment using ZK"
 
@@ -37,16 +34,13 @@ Comprehensive payment capabilities for the MozartPay platform, including multi-r
 # With memo
 "send 100 XLM to GD...ADDRESS with memo 'invoice #123'"
 
-# Different rail
-"send 50 XLM using x402 micropayments"
-
 # Private payment
 "send 100 XLM privately using ZK"
 ```
 
 **Payment Rails**:
 - **Direct**: Standard Stellar network payment
-- **x402**: Micropayment protocol with streaming
+- **x402**: HTTP pay-per-request payments via `pay_x402`
 - **Tempo**: Cross-border remittance service
 - **ZK**: Zero-knowledge privacy payment
 
@@ -220,53 +214,52 @@ Comprehensive payment capabilities for the MozartPay platform, including multi-r
 ---
 
 ### pay_x402
-**Description**: Execute payment via x402 micropayment protocol
+**Description**: Execute a Stellar x402 v2 HTTP payment against a protected resource
 **Category**: payment_operations
 **MCP Tool**: pay_x402
 
 **Parameters**:
-- `to` (string, required): Recipient address
-- `amount` (string, required): Amount to send
-- `asset` (string, required): Asset code
-- `execute` (boolean): Execute payment (dry-run if false)
+- `resource` (string, required): HTTP resource URL that returns an x402 v2 challenge
+- `method` (string): HTTP method for the resource request
+- `body` (string): Optional HTTP request body
+- `headers` (object): Optional request headers
+- `network` (string): `stellar-testnet` or `stellar-mainnet`
+- `payer` (string): Payer Stellar address (defaults to active wallet)
+- `max_atomic_amount` (string): Optional spend cap in token atomic units
+- `execute` (boolean): Send the paid retry (dry-run if false)
 
 **Natural Language Patterns**:
-- "send 100 XLM using x402"
-- "pay with micropayment streaming"
-- "x402 payment to GD...ADDRESS"
-- "stream 50 XLM payment"
-- "micropayment of 10 USDC"
+- "fetch this x402-protected resource"
+- "pay for https://example.com/api/data with x402"
+- "dry run this Stellar x402 payment"
+- "use x402 on mainnet for this endpoint"
 
 **Examples**:
 ```bash
-# x402 payment
-"send 100 XLM using x402 to GD...ADDRESS"
+# Dry-run a protected resource request
+"dry run x402 for https://api.example.com/data on stellar-testnet"
 
-# Streaming payment
-"stream 50 XLM payment using x402"
-
-# Dry run
-"simulate x402 payment of 25 USDC"
+# Execute the paid retry after receiving a 402 challenge
+"pay for https://api.example.com/data using x402 on stellar-mainnet"
 ```
 
 **x402 Features**:
-- Micropayment streaming
-- Real-time settlement
-- Low fees
-- Automatic routing
-- Streaming controls
+- HTTP 402 `PAYMENT-REQUIRED` challenge handling
+- Stellar `exact` scheme on testnet and pubnet
+- SEP-41 Soroban token authorization-entry signing
+- `PAYMENT-SIGNATURE` retry and settlement response parsing
+- Dry-run payload generation and optional atomic-amount cap
 
 **Use Cases**:
-- Content monetization
 - API usage billing
-- Subscription payments
-- Pay-per-use services
-- Real-time transfers
+- Pay-per-request data access
+- Agentic service payments
+- Paid content delivery
 
 **Follow-up Questions**:
-- "Would you like to set up streaming controls?"
-- "Should I monitor the payment progress?"
-- "Do you want to save this recipient?"
+- "Would you like to dry-run the request first?"
+- "Should I set a maximum atomic amount?"
+- "Do you want to use testnet or mainnet?"
 
 ---
 
@@ -355,7 +348,7 @@ Comprehensive payment capabilities for the MozartPay platform, including multi-r
 
 **Rail Capabilities**:
 - **Direct**: Standard Stellar payments
-- **x402**: Micropayment streaming
+- **x402**: HTTP pay-per-request payments
 - **Tempo**: Cross-border remittance
 - **ZK**: Privacy-preserving payments
 
@@ -368,7 +361,7 @@ Comprehensive payment capabilities for the MozartPay platform, including multi-r
 - Reliability guarantees
 
 **Rail Selection Guide**:
-- **Small amounts**: x402 for low fees
+- **HTTP resources**: x402 for pay-per-request endpoints
 - **International**: Tempo for FX conversion
 - **Privacy needed**: ZK for anonymity
 - **Standard use**: Direct for reliability
@@ -457,18 +450,18 @@ A: Direct for reliability, x402 for micropayments, Tempo for international, ZK f
 A: Yes, they use zero-knowledge proofs to hide transaction details while maintaining verifiability.
 
 **Q: How fast are x402 payments?**
-A: x402 offers real-time streaming payments, typically settling in 1-2 seconds.
+A: Settlement timing depends on the resource server's facilitator and Stellar ledger confirmation, typically a few seconds.
 
 **Q: Can I reverse payments?**
 A: Most payments are irreversible on Stellar, but some rails offer dispute resolution.
 
 **Q: What are the fees for different rails?**
-A: Fees vary: Direct (~0.00001 XLM), x402 (~0.001 XLM), Tempo (~0.5%), ZK (~0.002 XLM).
+A: Fees vary: Direct (~0.00001 XLM), x402 fees are facilitator-sponsored, Tempo (~0.5%), ZK (~0.002 XLM).
 
 ## Tips
 
 - Always compare rail costs before large payments
-- Use x402 for frequent small payments
+- Use x402 for HTTP resources that advertise a v2 Stellar `exact` challenge
 - Consider ZK for sensitive transactions
 - Use Tempo for international transfers
 - Save frequently used recipients

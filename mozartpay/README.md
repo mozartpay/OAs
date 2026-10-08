@@ -79,8 +79,8 @@ mozartpay contract create-agreement --dispute-window 86400
 mozartpay asset create-ft --name "MyToken" --symbol MTK \
   --supply 1000000 --with-score --with-carbon
 
-# 6. Make a payment
-mozartpay pay send --to <address> --amount 10 --asset USDC --rail x402
+# 6. Pay for an x402-protected HTTP resource
+mozartpay pay x402 --resource <https-url> --network stellar-testnet
 
 # 7. Generate compliance report
 mozartpay report generate --vc-attach

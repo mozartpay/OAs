@@ -2,11 +2,18 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
 
 	"github.com/ogtechnologies/mozartpay/internal/config"
 	"github.com/ogtechnologies/mozartpay/internal/integrations"
 	"github.com/ogtechnologies/mozartpay/internal/models"
+	"github.com/ogtechnologies/mozartpay/internal/wallet"
+	"github.com/ogtechnologies/mozartpay/internal/x402"
+	"github.com/stellar/go/keypair"
 )
 
 // ============================================
@@ -1097,38 +1104,140 @@ func (s *Server) handlePayQuote(ctx context.Context, args map[string]interface{}
 }
 
 func (s *Server) handlePayX402(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	to, ok := getStringArg(args, "to")
-	if !ok || to == "" {
-		return nil, fmt.Errorf("missing required parameter: to")
+	resource, ok := getStringArg(args, "resource")
+	if !ok || strings.TrimSpace(resource) == "" {
+		return nil, fmt.Errorf("missing required parameter: resource")
+	}
+	if s.cfg != nil && !s.cfg.Integrations.X402Enabled {
+		return nil, fmt.Errorf("x402 is disabled in configuration")
 	}
 
-	amount, ok := getStringArg(args, "amount")
-	if !ok || amount == "" {
-		return nil, fmt.Errorf("missing required parameter: amount")
+	method, _ := getStringArg(args, "method")
+	if method == "" {
+		method = "GET"
+	}
+	body, _ := getStringArg(args, "body")
+	if len(body) > 1<<20 {
+		return nil, fmt.Errorf("body exceeds 1 MiB")
+	}
+	networkName, _ := getStringArg(args, "network")
+	if networkName == "" && s.cfg != nil {
+		networkName = s.cfg.Network
+	}
+	if networkName == "" {
+		networkName = "stellar-testnet"
+	}
+	payer, _ := getStringArg(args, "payer")
+	if payer == "" && s.cfg != nil {
+		payer = s.cfg.ActiveAddress
 	}
 
-	asset, ok := getStringArg(args, "asset")
-	if !ok || asset == "" {
-		return nil, fmt.Errorf("missing required parameter: asset")
+	headers := make(map[string]string)
+	if rawHeaders, ok := args["headers"].(map[string]interface{}); ok {
+		for name, raw := range rawHeaders {
+			value, ok := raw.(string)
+			if !ok {
+				return nil, fmt.Errorf("header %s must be a string", name)
+			}
+			headers[name] = value
+		}
 	}
 
+	var signer *keypair.Full
+	var err error
+	if payer != "" {
+		signer, err = wallet.LoadStellarKeypairForAddress(payer)
+	} else {
+		signer, err = wallet.LoadStellarKeypair()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load Stellar payer keypair: %w", err)
+	}
+
+	rpcURL, _ := getStringArg(args, "rpc_url")
+	client, rpcClient, err := x402.NewStellarClientWithRPCURL(networkName, signer, config.NewHTTPClient(), rpcURL)
+	if err != nil {
+		return nil, err
+	}
+	defer rpcClient.Close()
+
+	maxAtomicAmount, err := getAtomicAmountArg(args, "max_atomic_amount")
+	if err != nil {
+		return nil, err
+	}
 	execute := getBoolArg(args, "execute")
-
-	// TODO: Implement actual x402 payment logic
-	status := "dry_run"
-	if execute {
-		status = "completed"
+	result, err := client.Fetch(ctx, x402.Request{
+		Method:  strings.ToUpper(method),
+		URL:     strings.TrimSpace(resource),
+		Headers: headers,
+		Body:    []byte(body),
+	}, x402.FetchOptions{
+		DryRun:          !execute,
+		MaxAtomicAmount: maxAtomicAmount,
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	return map[string]interface{}{
-		"to":      to,
-		"amount":  amount,
-		"asset":   asset,
-		"execute": execute,
-		"tx_hash": "mock_x402_tx_hash",
-		"status":  status,
-		"message": fmt.Sprintf("x402 payment %s", map[bool]string{true: "executed", false: "simulated"}[execute]),
-	}, nil
+	status := "no_payment_required"
+	if result.PaymentAttempted {
+		status = "completed"
+	} else if result.DryRun {
+		status = "dry_run"
+	}
+	responseBody := result.BodyText
+	if len(responseBody) > 8192 {
+		responseBody = responseBody[:8192] + "..."
+	}
+
+	response := map[string]interface{}{
+		"resource":          resource,
+		"status":            status,
+		"status_code":       result.StatusCode,
+		"final_url":         result.FinalURL,
+		"payment_attempted": result.PaymentAttempted,
+		"payment_ready":     result.PaymentPayload != nil,
+		"execute":           execute,
+		"message":           "x402 HTTP flow completed",
+	}
+	if result.Accepted != nil {
+		response["accepted"] = result.Accepted
+	}
+	if result.Settlement != nil {
+		response["settlement"] = result.Settlement
+	}
+	if responseBody != "" {
+		response["response_body"] = responseBody
+	}
+	return response, nil
+}
+
+func getAtomicAmountArg(args map[string]interface{}, key string) (string, error) {
+	value, ok := args[key]
+	if !ok || value == nil {
+		return "", nil
+	}
+	switch v := value.(type) {
+	case string:
+		amount := strings.TrimSpace(v)
+		if amount == "" {
+			return "", fmt.Errorf("%s cannot be empty", key)
+		}
+		return amount, nil
+	case float64:
+		if v < 0 || math.Trunc(v) != v || v > float64(math.MaxInt64) {
+			return "", fmt.Errorf("%s must be a non-negative integer or decimal string", key)
+		}
+		return strconv.FormatInt(int64(v), 10), nil
+	case json.Number:
+		amount := strings.TrimSpace(v.String())
+		if amount == "" {
+			return "", fmt.Errorf("%s cannot be empty", key)
+		}
+		return amount, nil
+	default:
+		return "", fmt.Errorf("%s must be a non-negative integer or decimal string", key)
+	}
 }
 
 func (s *Server) handlePayZK(ctx context.Context, args map[string]interface{}) (interface{}, error) {
@@ -1180,9 +1289,9 @@ func (s *Server) handlePayRails(ctx context.Context, args map[string]interface{}
 			"available":   true,
 		},
 		"x402": map[string]interface{}{
-			"name":        "x402 Micropayments",
-			"description": "Micropayment protocol with streaming",
-			"fees":        "0.001 XLM",
+			"name":        "x402 HTTP Payments",
+			"description": "x402 v2 SEP-41 token payments with facilitator settlement",
+			"fees":        "Facilitator-sponsored",
 			"speed":       "1-2s",
 			"available":   true,
 		},

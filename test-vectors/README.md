@@ -237,9 +237,10 @@ Test vectors are aligned with actual MozartPay CLI commands:
 ### Payment Commands
 
 ```bash
-mozartpay pay send --to <address> --amount <amount> --asset <XLM|USDC|EURC> --rail <direct|x402|tempo|zk> --network <stellar-testnet|stellar-mainnet> --output <pretty|json>
+mozartpay pay send --to <address> --amount <amount> --asset <XLM|USDC|EURC> --rail <direct|tempo|zk> --network <stellar-testnet|stellar-mainnet> --output <pretty|json>
+mozartpay pay send --resource <https-url> --rail x402 --network <stellar-testnet|stellar-mainnet> [--dry-run]
 mozartpay pay quote --from <currency> --to <currency>
-mozartpay pay x402 --resource <url> --price <price> --asset <asset> --to <address>
+mozartpay pay x402 --resource <https-url> --network <stellar-testnet|stellar-mainnet> [--dry-run] [--max-atomic-amount <amount>]
 mozartpay pay zk --to <address> --amount <amount> --asset <asset> --privacy <full|selective>
 ```
 

@@ -14,7 +14,7 @@ import (
 
 const (
 	TestnetRPCURL = "https://soroban-testnet.stellar.org"
-	MainnetRPCURL = "https://soroban-mainnet.stellar.org"
+	MainnetRPCURL = "https://mainnet.sorobanrpc.com"
 )
 
 func NetworkPassphrase(net string) string {

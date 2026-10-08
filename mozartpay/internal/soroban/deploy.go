@@ -34,7 +34,7 @@ func (c *Client) UploadWasm(ctx context.Context, kp *keypair.Full, wasmBytes []b
 		SourceAccount: kp.Address(),
 	}
 
-	assembledTx, simResp, err := c.simulateAndAssemble(ctx, sourceAccount, op, 0)
+	assembledTx, simResp, err := c.simulateAndAssemble(ctx, sourceAccount, op, 0, 0, "")
 	if err != nil {
 		return xdr.Hash{}, "", err
 	}
@@ -104,7 +104,7 @@ func (c *Client) CreateContract(ctx context.Context, kp *keypair.Full, wasmHash 
 		}
 	}
 
-	assembledTx, simResp, err := c.simulateAndAssemble(ctx, sourceAccount, op, 0)
+	assembledTx, simResp, err := c.simulateAndAssemble(ctx, sourceAccount, op, 0, 0, "")
 	if err != nil {
 		return "", "", err
 	}
@@ -161,7 +161,7 @@ func (c *Client) simulateAndAssembleAndSubmit(
 	kp *keypair.Full,
 	baseFee int64,
 ) (txHash string, resultXDR string, resultMetaXDR string, err error) {
-	assembledTx, _, err := c.simulateAndAssemble(ctx, sourceAccount, op, baseFee)
+	assembledTx, _, err := c.simulateAndAssemble(ctx, sourceAccount, op, baseFee, 0, "")
 	if err != nil {
 		return "", "", "", err
 	}

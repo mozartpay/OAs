@@ -147,6 +147,10 @@ func Info(msg string) {
 	fmt.Printf("  %s %s\n", Teal_("→"), msg)
 }
 
+func Raw(msg string) {
+	fmt.Println(msg)
+}
+
 func Warn(msg string) {
 	fmt.Printf("  %s %s\n", Yellow_("⚠"), msg)
 }

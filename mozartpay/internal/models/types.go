@@ -256,16 +256,6 @@ type CarbonCredit struct {
 	TxHash    string     `json:"txHash"`
 }
 
-type X402Request struct {
-	ResourceURL string    `json:"resourceUrl"`
-	Price       float64   `json:"price"`
-	Asset       string    `json:"asset"`
-	Payer       string    `json:"payer"`
-	Payee       string    `json:"payee"`
-	Nonce       string    `json:"nonce"`
-	ExpiresAt   time.Time `json:"expiresAt"`
-}
-
 type TempoFXQuote struct {
 	SourceCurrency string    `json:"sourceCurrency"`
 	TargetCurrency string    `json:"targetCurrency"`

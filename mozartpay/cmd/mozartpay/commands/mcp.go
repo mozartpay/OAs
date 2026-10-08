@@ -3,6 +3,7 @@ package commands
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/ogtechnologies/mozartpay/internal/config"
 	"github.com/ogtechnologies/mozartpay/internal/mcp"
@@ -41,9 +42,9 @@ The server exposes tools like:
 			// ui.Header intentionally omitted
 
 			if *verbose {
-				fmt.Printf("Transport: %s\n", *transport)
+				fmt.Fprintf(os.Stderr, "Transport: %s\n", *transport)
 				if *transport == "sse" {
-					fmt.Printf("Port: %d\n", *port)
+					fmt.Fprintf(os.Stderr, "Port: %d\n", *port)
 				}
 			}
 
