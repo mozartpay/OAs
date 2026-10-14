@@ -1,7 +1,7 @@
 BINARY     = mozartpay
 MODULE     = github.com/ogtechnologies/mozartpay
 CMD        = ./cmd/mozartpay
-VERSION    = 0.2.0
+VERSION    = 0.3.0
 BUILD_DIR  = ./dist
 GOFLAGS    =
 

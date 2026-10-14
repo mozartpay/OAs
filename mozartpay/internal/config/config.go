@@ -18,7 +18,7 @@ const (
 
 // Version is the CLI release version. It is a var (not const) so the Makefile
 // can inject it via -ldflags "-X .../internal/config.Version=...".
-var Version = "0.2.0"
+var Version = "0.3.0"
 
 type Config struct {
 	Network               string            `json:"network"`
