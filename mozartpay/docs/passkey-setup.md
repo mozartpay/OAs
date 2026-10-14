@@ -1,304 +1,141 @@
-# Passkey Setup Guide for wwWallet
+# Passkey Protection Setup Guide
 
-This guide covers setting up WebAuthn passkey authentication with wwWallet in MozartPay CLI.
+This guide covers WebAuthn passkey protection for Stellar wallets in MozartPay CLI.
 
-## What is wwWallet?
+## Overview
 
-wwWallet is a WebAuthn-based wallet solution that uses hardware-backed passkeys for secure authentication. Unlike traditional private key wallets, wwWallet leverages your device's built-in security features (Touch ID, Face ID, Windows Hello, YubiKey) for cryptographic operations.
+Passkey protection locks a normal Stellar wallet with a WebAuthn passkey
+(Touch ID, Face ID, Windows Hello, or a security key). The wallet stays a
+regular Ed25519 Stellar wallet — the passkey protects the seed, it does not
+sign Stellar transactions itself.
+
+### Security model
+
+- The seed is stored **AES-256-GCM-encrypted** in the wallet file
+  (`privateKeyEnc`); the plaintext seed is removed.
+- The encryption key lives in the **OS keychain** (macOS Keychain, Windows
+  Credential Manager, Linux Secret Service) under the `mozartpay` service.
+- A **verified WebAuthn assertion** in your browser unlocks a short-lived
+  grant (default 15 minutes) that lets the CLI sign while you are present.
+- When the grant expires — or after `wallet passkey lock` — the wallet cannot
+  sign. All signing paths fail with an "unlock first" error.
+- Passkey credentials are stored at
+  `~/.mozartpay/state/passkeys/<address>.json` with `0600` permissions.
+- The WebAuthn ceremony runs on an ephemeral `localhost` HTTP server with a
+  random session token; no external server or `wwwallet.app` dependency.
 
 ## Prerequisites
 
-### System Requirements
-- **macOS**: Touch ID or Face ID enabled
-- **Windows**: Windows Hello configured
-- **Linux**: Compatible security key (YubiKey, etc.)
-- **Browser**: Modern browser with WebAuthn support
-
-### Software Requirements
-- MozartPay CLI v0.2.0 or later
-- Go 1.22+ (if building from source)
+- An existing Stellar wallet (`wallet connect --provider stellar` or
+  `wallet import`)
+- A browser with WebAuthn support
+- A working OS keychain (on headless Linux, a Secret Service daemon such as
+  `gnome-keyring` or `keepassxc` must be running)
 
 ## Quick Start
 
-### Method 1: Interactive Setup (Recommended)
+```bash
+# 1. Create a Stellar wallet
+mozartpay wallet connect --provider stellar --network stellar-testnet
+
+# 2. Enable passkey protection (opens a browser ceremony)
+mozartpay wallet passkey register
+
+# 3. Unlock before signing (opens a browser ceremony)
+mozartpay wallet passkey unlock
+
+# 4. Check status
+mozartpay wallet passkey status
+```
+
+## Commands
+
+All commands accept `--address <addr>`; the active wallet is used when omitted.
+
+### `wallet passkey register`
+
+Registers a WebAuthn credential, generates a random encryption key, stores the
+key in the OS keychain, encrypts the seed, and removes the plaintext seed from
+the wallet file.
 
 ```bash
-# Build the CLI
-make build
-
-# Start interactive wallet setup
-./mozartpay wallet connect
+mozartpay wallet passkey register
+mozartpay wallet passkey register --address GABC...
 ```
 
-When prompted:
-1. Select "1) wwWallet (WebAuthn passkeys)"
-2. Choose your network (stellar-testnet recommended)
-3. Follow the passkey creation prompts
+### `wallet passkey unlock`
 
-### Method 2: Direct Commands
+Runs a WebAuthn assertion ceremony. On success the decrypted seed is kept in
+the OS keychain for the TTL (default `15m`).
 
 ```bash
-# Create wwWallet with passkey
-./mozartpay wallet connect --provider wwwallet --network stellar-testnet --passkey
-
-# Fund the wallet
-./mozartpay wallet fund
-
-# Show wallet details
-./mozartpay wallet show
+mozartpay wallet passkey unlock
+mozartpay wallet passkey unlock --ttl 1h
 ```
 
-### Method 3: Using Scripts
+### `wallet passkey lock`
+
+Immediately drops the unlock grant.
 
 ```bash
-# Make scripts executable
-chmod +x scripts/*.sh
-
-# Run multi-wallet manager
-./scripts/multi-wallet.sh
-# Select option 2 for wwWallet
+mozartpay wallet passkey lock
 ```
 
-## Detailed Setup Process
+### `wallet passkey status`
 
-### Step 1: Initialize wwWallet
+Shows whether the wallet is protected and whether an unlock grant is live.
 
 ```bash
-./mozartpay wallet connect --provider wwwallet --network stellar-testnet
+mozartpay wallet passkey status
 ```
 
-**Expected Output:**
-```
-Connect Wallet
-─────────────────────────────────
-Select Wallet Type
-1) wwWallet (WebAuthn passkeys)
-2) Stellar (Native Stellar keypair)
-3) External EOA
-Choose option [1-3]: 1
+### `wallet passkey list`
 
-Initiating WebAuthn passkey ceremony... ✓ wwWallet connected via passkey
-```
-
-### Step 2: Passkey Creation
-
-The system will simulate a WebAuthn ceremony and create:
-- **Credential ID**: Unique identifier for your passkey
-- **Public Key**: Cryptographic public key
-- **Algorithm**: ES256 signature algorithm
-- **Origin**: wwWallet application origin
-
-### Step 3: Wallet Verification
+Lists all passkey-protected wallets with their credentials and lock state.
 
 ```bash
-./mozartpay wallet show
+mozartpay wallet passkey list
 ```
 
-**Expected Output:**
-```
-Wallet Info
-─────────────────────────────────
-Connected Account
-Address: GDQ5ENR7YRYH4DAKZ2YQ3S2N5DQX2W3FMIPRGDZJAVJNGXQJQYQQ
-Network: Testnet
-Type: wwwallet
-Balance: 0 XLM
-Funded: false
+### `wallet passkey disable`
 
-Passkey Credential
-Credential ID: pkcpub_abc123def456...
-Algorithm: ES256
-Origin: https://wwwallet.app
-```
-
-### Step 4: Fund Your Wallet
+Requires a successful assertion, then restores the plaintext seed and deletes
+all passkey state (credentials, keychain entries). Use `--confirm` to skip the
+prompt.
 
 ```bash
-./mozartpay wallet fund
+mozartpay wallet passkey disable
 ```
 
-This will request testnet funds from the Stellar Friendbot faucet.
+## Signing with a protected wallet
 
-## Passkey Management Commands
+Every signing path (contract deploy/invoke, asset issuance, DID attestation,
+payments, `wallet export --private`) resolves the seed through the unlock
+grant. If the wallet is locked, you will see:
 
-### View Passkey Details
-
-```bash
-./mozartpay wallet show
-# Shows passkey credential information
 ```
-
-### Export Wallet (Backup)
-
-```bash
-./mozartpay wallet export --private
-# ⚠️  Use with caution - shows sensitive information
+wallet GABC... is passkey-protected and locked — run 'mozartpay wallet passkey unlock GABC...'
 ```
-
-### Switch Between Wallets
-
-```bash
-./mozartpay wallet list
-./mozartpay wallet switch <address>
-```
-
-## Security Best Practices
-
-### Passkey Security
-- ✅ **Hardware-Backed**: Uses device secure enclave
-- ✅ **Biometric**: Requires your fingerprint/face
-- ✅ **No Private Keys**: No seed phrases to store
-- ✅ **Phishing Resistant**: Bound to your domain
-
-### Backup Strategy
-1. **Device Backup**: Ensure your device is backed up
-2. **Multiple Devices**: Set up wwWallet on multiple devices
-3. **Recovery Options**: Keep alternative wallet types as backup
-
-### Recovery Options
-If you lose access to your passkey:
-1. Use another device with the same passkey
-2. Create a new wwWallet on a different device
-3. Use a traditional Stellar wallet as fallback
 
 ## Troubleshooting
 
-### Common Issues
+**"could not store encryption key in OS keychain"** — on headless Linux no
+Secret Service daemon is running. Start `gnome-keyring`/`keepassxc`, or run in
+a session with a keychain available.
 
-#### "Passkey ceremony failed"
-**Solution:**
-- Ensure your device has biometric authentication enabled
-- Check that your browser supports WebAuthn
-- Try using a different browser
+**Browser doesn't open** — the CLI always prints the ceremony URL; copy it into
+a WebAuthn-capable browser on the same machine. The link is loopback-only and
+token-protected.
 
-#### "Wallet not funded"
-**Solution:**
-- Run `./mozartpay wallet fund`
-- Check network connectivity
-- Verify you're using testnet
+**"no passkey registered for wallet"** — run `wallet passkey register` first,
+or check `wallet passkey status` to see the protection state.
 
-#### "Passkey not recognized"
-**Solution:**
-- Ensure you're on the same device that created the passkey
-- Check that biometric authentication is working
-- Try recreating the passkey
+**Unlock grant expired** — grants are time-limited by design. Run
+`wallet passkey unlock` again (optionally with a longer `--ttl`).
 
-### Debug Mode
+## Migrating from the wwWallet demo
 
-Enable debug logging for troubleshooting:
-
-```bash
-./mozartpay wallet connect --provider wwwallet --debug
-```
-
-### Reset Passkey
-
-If you need to reset your passkey:
-
-```bash
-# Create a new wwWallet (old one remains inactive)
-./mozartpay wallet connect --provider wwwallet
-
-# Or remove old wallet and create new one
-./mozartpay wallet list
-./mozartpay wallet connect --provider wwwallet
-```
-
-## Advanced Configuration
-
-### Custom Networks
-
-```bash
-# Mainnet setup (when ready)
-./mozartpay wallet connect --provider wwwallet --network stellar-mainnet
-```
-
-### Multiple Passkeys
-
-You can create multiple wwWallet instances with different passkeys:
-
-```bash
-# First wallet
-./mozartpay wallet connect --provider wwwallet --network stellar-testnet
-
-# Second wallet (different passkey)
-./mozartpay wallet connect --provider wwwallet --network stellar-testnet
-```
-
-## Integration with Other Features
-
-### DID Integration
-
-Your wwWallet can be linked to Decentralized Identifiers:
-
-```bash
-# Create DID first
-./mozartpay did create --method key
-
-# Then connect wallet (will auto-link)
-./mozartpay wallet connect --provider wwwallet
-```
-
-### Asset Creation
-
-Use your wwWallet for asset issuance:
-
-```bash
-./mozartpay asset create-ft --name "MyToken" --symbol "MTK"
-```
-
-### Payment Operations
-
-Send payments using your wwWallet:
-
-```bash
-./mozartpay pay send --to <address> --amount 10 --asset XLM
-```
-
-## Developer Information
-
-### Passkey Structure
-
-```go
-type PasskeyCredential struct {
-    CredentialID string    `json:"credentialId"`
-    PublicKey    string    `json:"publicKey"`
-    Algorithm    string    `json:"algorithm"`
-    Origin       string    `json:"origin"`
-    CreatedAt    time.Time `json:"createdAt"`
-}
-```
-
-### Storage Location
-
-Passkey credentials are stored locally at:
-```
-~/.mozartpay/state/wallets/<address>.json
-```
-
-### WebAuthn Flow
-
-1. **Credential Creation**: Passkey created via WebAuthn API
-2. **Authentication**: Biometric verification required
-3. **Signing**: Cryptographic operations using passkey
-4. **Storage**: Secure local storage with device permissions
-
-## Support
-
-If you encounter issues:
-
-1. Check this guide for common solutions
-2. Enable debug mode for detailed logs
-3. Review the troubleshooting section
-4. Check the MozartPay documentation
-
-## Next Steps
-
-After setting up your wwWallet:
-
-1. Fund your wallet with testnet XLM
-2. Create your first asset
-3. Explore payment features
-4. Set up DID integration
-
-For more advanced usage, see the [wwWallet Integration Guide](wwallet-integration.md).
+Legacy wallets created by the removed wwWallet scaffold (`type: "wwwallet"`)
+are migrated to `external` wallets automatically on load — they never held
+real signing keys. Passkeys are now a protection layer on real Stellar
+wallets; create a Stellar wallet and run `wallet passkey register` to use them.

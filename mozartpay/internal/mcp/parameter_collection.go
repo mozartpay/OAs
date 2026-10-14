@@ -39,7 +39,7 @@ type ParameterCollectionResponse struct {
 // ParameterSchemas defines all tool parameter schemas for validation
 var ParameterSchemas = map[string][]ParameterInfo{
 	"wallet_connect": {
-		{Name: "provider", Type: "string", Required: false, Description: "Wallet provider: wwwallet | stellar | external", Default: "wwwallet", Enum: []string{"wwwallet", "stellar", "external"}},
+		{Name: "provider", Type: "string", Required: false, Description: "Wallet provider: stellar | external", Default: "stellar", Enum: []string{"stellar", "external"}},
 		{Name: "network", Type: "string", Required: false, Description: "Network: stellar-testnet | stellar-mainnet | evm-sepolia | evm-mainnet", Default: "stellar-testnet", Enum: []string{"stellar-testnet", "stellar-mainnet", "evm-sepolia", "evm-mainnet"}},
 		{Name: "address", Type: "string", Required: false, Description: "External address for external provider", Examples: []string{"GD5DQYPNQFSX4TVWV5EHG63IZW5KQ5B4R6J3AY3ARJ2V2QZVX6A3Q..."}},
 	},
@@ -68,7 +68,7 @@ var ParameterSchemas = map[string][]ParameterInfo{
 		{Name: "confirm", Type: "boolean", Required: false, Description: "Confirm export for security"},
 	},
 	"wallet_passkey": {
-		{Name: "action", Type: "string", Required: false, Description: "Action: register | verify | remove", Default: "register", Enum: []string{"register", "verify", "remove"}},
+		{Name: "action", Type: "string", Required: false, Description: "Action: register | unlock | lock | disable | status", Default: "status", Enum: []string{"register", "unlock", "lock", "disable", "status"}},
 		{Name: "address", Type: "string", Required: false, Description: "Wallet address (uses active if omitted)"},
 	},
 	"swap_quote": {

@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
@@ -18,8 +19,8 @@ import (
 func newWalletCmd(cfg *config.Config) *Command {
 	cmd := &Command{
 		Name:  "wallet",
-		Short: "Manage wallets, passkeys, and account connections",
-		Long:  "Connect wwWallet via passkey, create or import a Stellar keypair, or register external EOA.",
+		Short: "Manage wallets, passkey protection, and account connections",
+		Long:  "Create or import a Stellar keypair, register an external EOA, and protect wallets with WebAuthn passkeys.",
 		cfg:   cfg,
 	}
 	cmd.addSub(newWalletConnectCmd(cfg))
@@ -45,15 +46,14 @@ func newWalletCmd(cfg *config.Config) *Command {
 
 func newWalletConnectCmd(cfg *config.Config) *Command {
 	fs := flag.NewFlagSet("connect", flag.ContinueOnError)
-	provider := fs.String("provider", "", "Wallet provider: wwwallet | stellar | external (interactive if omitted)")
+	provider := fs.String("provider", "", "Wallet provider: stellar | external (interactive if omitted)")
 	network := fs.String("network", "stellar-testnet", "Network: stellar-testnet | stellar-mainnet | evm-sepolia | evm-mainnet")
 	address := fs.String("address", "", "External address (for --provider external)")
-	passkey := fs.Bool("passkey", true, "Authenticate via WebAuthn passkey (wwwallet)")
 	output := fs.String("output", "pretty", "Output format: pretty | json")
 
 	return &Command{
 		Name:  "connect",
-		Short: "Connect a wallet (wwWallet, Stellar, or external EOA)",
+		Short: "Connect a wallet (Stellar keypair or external EOA)",
 		Flags: fs,
 		Run: func(c *Command, args []string) error {
 			ui.Header("Connect Wallet")
@@ -62,48 +62,34 @@ func newWalletConnectCmd(cfg *config.Config) *Command {
 			svc := wallet.NewService()
 
 			var acc *models.Account
-			var passkeyCred *models.PasskeyCredential
 			var err error
 
 			// Interactive provider selection if not specified
 			selectedProvider := *provider
 			if selectedProvider == "" {
 				ui.SectionLabel("Select Wallet Type")
-				fmt.Println("1) wwWallet (WebAuthn passkeys)")
-				fmt.Println("2) Stellar (Native Stellar keypair)")
-				fmt.Println("3) External EOA")
-				fmt.Print("Choose option [1-3]: ")
+				fmt.Println("1) Stellar (Native Stellar keypair)")
+				fmt.Println("2) External EOA")
+				fmt.Print("Choose option [1-2]: ")
 
 				var choice string
 				fmt.Scanln(&choice)
 				switch choice {
 				case "1":
-					selectedProvider = "wwwallet"
-				case "2":
 					selectedProvider = "stellar"
-				case "3":
+				case "2":
 					selectedProvider = "external"
 				default:
-					ui.Error("Invalid choice. Please select 1, 2, or 3.")
+					ui.Error("Invalid choice. Please select 1 or 2.")
 					return nil
 				}
 			}
 
 			switch selectedProvider {
-			case "wwwallet":
-				spin := ui.NewSpinner("Initiating WebAuthn passkey ceremony...")
-				spin.Start()
-				acc, passkeyCred, err = svc.ConnectWWWallet(net)
-				if err != nil {
-					spin.Stop(false, "Connection failed")
-					return err
-				}
-				spin.Stop(true, "wwWallet connected via passkey")
-
 			case "stellar":
 				spin := ui.NewSpinner("Creating native Stellar keypair...")
 				spin.Start()
-				acc, passkeyCred, err = svc.ConnectStellarWallet(net)
+				acc, err = svc.ConnectStellarWallet(net)
 				if err != nil {
 					spin.Stop(false, "Failed to create Stellar wallet")
 					return err
@@ -121,7 +107,7 @@ func newWalletConnectCmd(cfg *config.Config) *Command {
 				spin.Stop(true, "External EOA registered")
 
 			default:
-				return fmt.Errorf("unknown provider: %s", selectedProvider)
+				return fmt.Errorf("unknown provider: %s (supported: stellar, external)", selectedProvider)
 			}
 
 			// Link active DID if available (from config or state)
@@ -155,12 +141,6 @@ func newWalletConnectCmd(cfg *config.Config) *Command {
 			ui.KV("Funded", fmt.Sprintf("%v", acc.Funded))
 			if acc.DID != "" {
 				ui.KV("DID", safeTruncW(acc.DID, 40)+"...")
-			}
-			if passkeyCred != nil && *passkey {
-				ui.SectionLabel("Passkey Credential")
-				ui.KV("Credential ID", safeTruncW(passkeyCred.CredentialID, 24)+"...")
-				ui.KV("Algorithm", passkeyCred.Algorithm)
-				ui.KV("Origin", passkeyCred.Origin)
 			}
 
 			// Migrate from legacy if needed
@@ -653,10 +633,9 @@ func newWalletShowCmd(cfg *config.Config) *Command {
 				ui.KV("Linked DID", acc.DID)
 			}
 			ui.KV("Created", acc.CreatedAt.Format(time.RFC3339))
-
-			// DEBUG
-			fmt.Fprintf(os.Stderr, "\nDEBUG: Funded=%v, Network='%s', Testnet='%s', Mainnet='%s'\n", acc.Funded, acc.Network, models.NetworkStellarTestnet, models.NetworkStellarMainnet)
-			fmt.Fprintf(os.Stderr, "DEBUG: Is testnet=%v, Is mainnet=%v\n", acc.Network == models.NetworkStellarTestnet, acc.Network == models.NetworkStellarMainnet)
+			if acc.PasskeyProtected {
+				ui.KV("Passkey", "protected")
+			}
 
 			// Display assets/trustlines - filter for important assets only
 			if acc.Funded && (acc.Network == models.NetworkStellarTestnet || acc.Network == models.NetworkStellarMainnet) {
@@ -825,13 +804,17 @@ func newWalletExportCmd(cfg *config.Config) *Command {
 			ui.KV("Network", wallet.NetworkDisplayName(acc.Network))
 			ui.KV("Public Key", acc.PublicKey)
 
-			// Show private key if requested and available
-			if *showPrivate && acc.PrivateKey != "" {
-				ui.SectionLabel("⚠️  PRIVATE KEY - KEEP SECURE")
-				ui.KV("Private Key", acc.PrivateKey)
-				ui.Warn("Store this key securely and never share it!")
-			} else if *showPrivate {
-				ui.Warn("Private key not available for this wallet type")
+			// Show private key if requested and available (resolves through the
+			// unlock grant for passkey-protected wallets)
+			if *showPrivate {
+				seed, err := wallet.ResolveSeed(acc)
+				if err != nil {
+					ui.Warn("Private key not available: " + err.Error())
+				} else {
+					ui.SectionLabel("⚠️  PRIVATE KEY - KEEP SECURE")
+					ui.KV("Private Key", seed)
+					ui.Warn("Store this key securely and never share it!")
+				}
 			} else {
 				ui.Info("Use --private flag to show private key")
 			}
@@ -973,14 +956,17 @@ func newWalletRenameCmd(cfg *config.Config) *Command {
 func newWalletPasskeyCmd(cfg *config.Config) *Command {
 	cmd := &Command{
 		Name:  "passkey",
-		Short: "Manage wwWallet passkeys",
-		Long:  "Create, verify, list, and remove WebAuthn passkeys for wwWallet authentication.",
-		cfg:   cfg,
+		Short: "Manage passkey protection for wallets",
+		Long: "Protect a Stellar wallet with a WebAuthn passkey. The seed is encrypted at rest " +
+			"and a verified passkey assertion unlocks it for a limited time.",
+		cfg: cfg,
 	}
-	cmd.addSub(newWalletPasskeyCreateCmd(cfg))
-	cmd.addSub(newWalletPasskeyVerifyCmd(cfg))
+	cmd.addSub(newWalletPasskeyRegisterCmd(cfg))
+	cmd.addSub(newWalletPasskeyUnlockCmd(cfg))
+	cmd.addSub(newWalletPasskeyLockCmd(cfg))
+	cmd.addSub(newWalletPasskeyStatusCmd(cfg))
 	cmd.addSub(newWalletPasskeyListCmd(cfg))
-	cmd.addSub(newWalletPasskeyRemoveCmd(cfg))
+	cmd.addSub(newWalletPasskeyDisableCmd(cfg))
 	cmd.Run = func(c *Command, args []string) error {
 		c.printHelp()
 		return nil
@@ -988,111 +974,156 @@ func newWalletPasskeyCmd(cfg *config.Config) *Command {
 	return cmd
 }
 
-// ─── wallet passkey create ─────────────────────
+// resolvePasskeyTarget returns the --address flag value, or the active wallet's
+// address when the flag is omitted.
+func resolvePasskeyTarget(svc *wallet.Service, address string) (string, error) {
+	if address != "" {
+		return address, nil
+	}
+	acc, err := svc.GetActiveWallet()
+	if err != nil {
+		return "", fmt.Errorf("no active wallet found — use --address or set an active wallet first")
+	}
+	return acc.Address, nil
+}
 
-func newWalletPasskeyCreateCmd(cfg *config.Config) *Command {
-	fs := flag.NewFlagSet("create", flag.ContinueOnError)
+// ─── wallet passkey register ───────────────────
+
+func newWalletPasskeyRegisterCmd(cfg *config.Config) *Command {
+	fs := flag.NewFlagSet("register", flag.ContinueOnError)
 	address := fs.String("address", "", "Wallet address (uses active wallet if omitted)")
 
 	return &Command{
-		Name:  "create",
-		Short: "Create a new passkey for wallet",
+		Name:  "register",
+		Short: "Enable passkey protection on a wallet",
+		Long: "Registers a WebAuthn passkey and encrypts the wallet seed at rest. " +
+			"The wallet stays a normal Stellar wallet; signing requires an unlock after registration.",
 		Flags: fs,
 		Run: func(c *Command, args []string) error {
-			ui.Header("Create Passkey")
+			ui.Header("Register Passkey Protection")
 
 			svc := wallet.NewService()
-			var targetAddress string
-
-			if *address != "" {
-				targetAddress = *address
-			} else {
-				// Use active wallet
-				acc, err := svc.GetActiveWallet()
-				if err != nil {
-					ui.Error("No active wallet found. Use --address or set an active wallet first.")
-					return nil
-				}
-				targetAddress = acc.Address
-
-				if acc.Type != models.WalletWWWallet {
-					ui.Warn("Active wallet is not a wwWallet. Creating passkey will convert it to wwWallet.")
-				}
+			target, err := resolvePasskeyTarget(svc, *address)
+			if err != nil {
+				ui.Error(err.Error())
+				return nil
 			}
 
-			spin := ui.NewSpinner("Creating new passkey...")
-			spin.Start()
-
-			passkey, err := svc.CreatePasskey(targetAddress)
+			cred, err := svc.RegisterPasskey(target)
 			if err != nil {
-				spin.Stop(false, err.Error())
+				ui.Error(err.Error())
 				return err
 			}
-			spin.Stop(true, "Passkey created successfully")
 
-			ui.SectionLabel("New Passkey")
-			ui.KV("Credential ID", safeTruncW(passkey.CredentialID, 24)+"...")
-			ui.KV("Public Key", safeTruncW(passkey.PublicKey, 20)+"...")
-			ui.KV("Algorithm", passkey.Algorithm)
-			ui.KV("Origin", passkey.Origin)
-			ui.KV("Created", passkey.CreatedAt.Format(time.RFC3339))
-
-			ui.Success("Passkey created and linked to wallet")
-			ui.Info("Use 'mozartpay wallet passkey verify' to test the passkey")
-
+			ui.Success("Passkey registered — wallet seed is now encrypted at rest")
+			ui.KV("Wallet", target)
+			ui.KV("Credential ID", safeTruncW(base64URLEncode(cred.ID), 32)+"...")
+			ui.Info("Run 'mozartpay wallet passkey unlock' before signing.")
 			return nil
 		},
 	}
 }
 
-// ─── wallet passkey verify ─────────────────────
+// ─── wallet passkey unlock ─────────────────────
 
-func newWalletPasskeyVerifyCmd(cfg *config.Config) *Command {
-	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
+func newWalletPasskeyUnlockCmd(cfg *config.Config) *Command {
+	fs := flag.NewFlagSet("unlock", flag.ContinueOnError)
 	address := fs.String("address", "", "Wallet address (uses active wallet if omitted)")
+	ttl := fs.Duration("ttl", 15*time.Minute, "How long the wallet stays unlocked (e.g. 15m, 1h)")
 
 	return &Command{
-		Name:  "verify",
-		Short: "Verify passkey functionality",
+		Name:  "unlock",
+		Short: "Unlock a passkey-protected wallet",
+		Long:  "Runs a WebAuthn assertion; on success the seed can be used for signing until the TTL expires.",
 		Flags: fs,
 		Run: func(c *Command, args []string) error {
-			ui.Header("Verify Passkey")
+			ui.Header("Unlock Wallet")
 
 			svc := wallet.NewService()
-			var targetAddress string
-
-			if *address != "" {
-				targetAddress = *address
-			} else {
-				// Use active wallet
-				acc, err := svc.GetActiveWallet()
-				if err != nil {
-					ui.Error("No active wallet found. Use --address or set an active wallet first.")
-					return nil
-				}
-				targetAddress = acc.Address
+			target, err := resolvePasskeyTarget(svc, *address)
+			if err != nil {
+				ui.Error(err.Error())
+				return nil
 			}
 
-			spin := ui.NewSpinner("Verifying passkey...")
-			spin.Start()
-
-			valid, err := svc.VerifyPasskey(targetAddress)
-			if err != nil {
-				spin.Stop(false, err.Error())
+			if err := svc.Unlock(target, *ttl); err != nil {
+				ui.Error(err.Error())
 				return err
 			}
 
-			if valid {
-				spin.Stop(true, "Passkey verification successful")
-				ui.Success("Passkey is working correctly")
-				ui.KV("Wallet Address", targetAddress)
-				ui.KV("Status", "Valid")
-			} else {
-				spin.Stop(false, "Passkey verification failed")
-				ui.Error("Passkey verification failed")
-				ui.Info("The wallet may not have a passkey or the passkey is invalid")
+			ui.Success(fmt.Sprintf("Wallet unlocked for %s", ttl.Round(time.Second)))
+			ui.KV("Wallet", target)
+			ui.Info("Run 'mozartpay wallet passkey lock' to lock it early.")
+			return nil
+		},
+	}
+}
+
+// ─── wallet passkey lock ───────────────────────
+
+func newWalletPasskeyLockCmd(cfg *config.Config) *Command {
+	fs := flag.NewFlagSet("lock", flag.ContinueOnError)
+	address := fs.String("address", "", "Wallet address (uses active wallet if omitted)")
+
+	return &Command{
+		Name:  "lock",
+		Short: "Lock a passkey-protected wallet",
+		Flags: fs,
+		Run: func(c *Command, args []string) error {
+			ui.Header("Lock Wallet")
+
+			svc := wallet.NewService()
+			target, err := resolvePasskeyTarget(svc, *address)
+			if err != nil {
+				ui.Error(err.Error())
+				return nil
 			}
 
+			if err := svc.Lock(target); err != nil {
+				ui.Error(err.Error())
+				return err
+			}
+
+			ui.Success("Wallet locked")
+			ui.KV("Wallet", target)
+			return nil
+		},
+	}
+}
+
+// ─── wallet passkey status ─────────────────────
+
+func newWalletPasskeyStatusCmd(cfg *config.Config) *Command {
+	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	address := fs.String("address", "", "Wallet address (uses active wallet if omitted)")
+
+	return &Command{
+		Name:  "status",
+		Short: "Show passkey protection status",
+		Flags: fs,
+		Run: func(c *Command, args []string) error {
+			ui.Header("Passkey Status")
+
+			svc := wallet.NewService()
+			target, err := resolvePasskeyTarget(svc, *address)
+			if err != nil {
+				ui.Error(err.Error())
+				return nil
+			}
+
+			st, err := svc.GetPasskeyStatus(target)
+			if err != nil {
+				ui.Error(err.Error())
+				return err
+			}
+
+			ui.KV("Wallet", st.Address)
+			ui.KV("Protected", fmt.Sprintf("%v", st.Protected))
+			ui.KV("Unlocked", fmt.Sprintf("%v", st.Unlocked))
+			if st.UnlockedUntil != nil {
+				ui.KV("Unlocked Until", st.UnlockedUntil.Format(time.RFC3339))
+			}
+			ui.KV("Credentials", fmt.Sprintf("%d", len(st.Credentials)))
 			return nil
 		},
 	}
@@ -1103,119 +1134,91 @@ func newWalletPasskeyVerifyCmd(cfg *config.Config) *Command {
 func newWalletPasskeyListCmd(cfg *config.Config) *Command {
 	return &Command{
 		Name:  "list",
-		Short: "List all passkey credentials",
+		Short: "List passkey-protected wallets and credentials",
 		Run: func(c *Command, args []string) error {
-			ui.Header("Passkey Credentials")
+			ui.Header("Passkey Protection")
 
 			svc := wallet.NewService()
-			passkeys, err := svc.ListPasskeys()
+			wallets, active, err := svc.ListWallets()
 			if err != nil {
-				ui.Error("Failed to list passkeys: " + err.Error())
+				ui.Error("Failed to list wallets: " + err.Error())
 				return err
 			}
 
-			if len(passkeys) == 0 {
-				ui.Info("No passkey credentials found")
-				ui.Info("Create a passkey with: mozartpay wallet passkey create")
-				return nil
-			}
-
-			ui.SectionLabel(fmt.Sprintf("Found %d passkey(s)", len(passkeys)))
-
-			for i, pk := range passkeys {
-				ui.KV(fmt.Sprintf("[%d] Address", i+1), safeTruncW(pk.Address, 30)+"...")
-				ui.KV("    Network", pk.Network)
-				ui.KV("    Algorithm", pk.Algorithm)
-				ui.KV("    Origin", pk.Origin)
-				ui.KV("    Created", pk.Created.Format(time.RFC3339))
+			found := 0
+			for _, w := range wallets {
+				st, err := svc.GetPasskeyStatus(w.Address)
+				if err != nil || !st.Protected {
+					continue
+				}
+				found++
+				marker := "  "
+				if w.Address == active {
+					marker = "▸ "
+				}
+				ui.KV(fmt.Sprintf("%s%s", marker, safeTruncW(w.Address, 30)), "")
+				for _, cred := range st.Credentials {
+					ui.KV("    Credential", safeTruncW(cred.CredentialID, 32)+"...")
+					ui.KV("    Sign Count", fmt.Sprintf("%d", cred.SignCount))
+				}
+				if st.Unlocked {
+					ui.KV("    Unlocked Until", st.UnlockedUntil.Format(time.RFC3339))
+				} else {
+					ui.KV("    Status", "locked")
+				}
 				fmt.Println()
 			}
 
-			ui.Success("Passkey list complete")
+			if found == 0 {
+				ui.Info("No passkey-protected wallets found")
+				ui.Info("Protect a wallet with: mozartpay wallet passkey register")
+			}
 			return nil
 		},
 	}
 }
 
-// ─── wallet passkey remove ─────────────────────
+// ─── wallet passkey disable ────────────────────
 
-func newWalletPasskeyRemoveCmd(cfg *config.Config) *Command {
-	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
+func newWalletPasskeyDisableCmd(cfg *config.Config) *Command {
+	fs := flag.NewFlagSet("disable", flag.ContinueOnError)
 	address := fs.String("address", "", "Wallet address (uses active wallet if omitted)")
 	confirm := fs.Bool("confirm", false, "Skip confirmation prompt")
 
 	return &Command{
-		Name:  "remove",
-		Short: "Remove passkey from wallet",
-		Long:  "Removes the passkey from a wwWallet, converting it to an external wallet. This action cannot be undone.",
+		Name:  "disable",
+		Short: "Remove passkey protection from a wallet",
+		Long: "Verifies the passkey, then restores the plaintext seed and removes all " +
+			"passkey state. The wallet signs without an unlock afterwards.",
 		Flags: fs,
 		Run: func(c *Command, args []string) error {
-			ui.Header("Remove Passkey")
+			ui.Header("Disable Passkey Protection")
 
 			svc := wallet.NewService()
-			var targetAddress string
-
-			if *address != "" {
-				targetAddress = *address
-			} else {
-				// Use active wallet
-				acc, err := svc.GetActiveWallet()
-				if err != nil {
-					ui.Error("No active wallet found. Use --address or set an active wallet first.")
-					return nil
-				}
-				targetAddress = acc.Address
-			}
-
-			// Get wallet info for confirmation
-			acc, err := svc.GetWalletByAddress(targetAddress)
+			target, err := resolvePasskeyTarget(svc, *address)
 			if err != nil {
-				ui.Error("Wallet not found: " + err.Error())
-				return err
-			}
-
-			if acc.Type != models.WalletWWWallet {
-				ui.Error("This wallet is not a wwWallet and has no passkey to remove")
+				ui.Error(err.Error())
 				return nil
 			}
 
-			// Show wallet info
-			ui.SectionLabel("Wallet to Remove Passkey From")
-			ui.KV("Address", safeTruncW(targetAddress, 30)+"...")
-			ui.KV("Type", string(acc.Type))
-			ui.KV("Network", string(acc.Network))
-
-			// Confirmation
 			if !*confirm {
-				fmt.Println()
-				ui.Warn("⚠️  This will remove the passkey and convert the wallet to an external wallet.")
-				ui.Warn("   This action cannot be undone.")
-				fmt.Print("Type 'remove' to confirm: ")
+				ui.Warn("⚠️  This removes passkey protection and stores the seed in plaintext.")
+				fmt.Print("Type 'disable' to confirm: ")
 				var confirmation string
 				fmt.Scanln(&confirmation)
-
-				if confirmation != "remove" {
-					ui.Info("Passkey removal cancelled")
+				if confirmation != "disable" {
+					ui.Info("Cancelled")
 					return nil
 				}
 			}
 
-			spin := ui.NewSpinner("Removing passkey...")
-			spin.Start()
-
-			err = svc.RemovePasskey(targetAddress)
-			if err != nil {
-				spin.Stop(false, err.Error())
+			if err := svc.DisablePasskey(target); err != nil {
+				ui.Error(err.Error())
 				return err
 			}
 
-			spin.Stop(true, "Passkey removed successfully")
-
-			ui.Success("Passkey removed from wallet")
-			ui.KV("Wallet Address", safeTruncW(targetAddress, 30)+"...")
-			ui.KV("New Type", "external")
-			ui.Info("The wallet is now an external wallet and can be managed with private keys")
-
+			ui.Success("Passkey protection disabled")
+			ui.KV("Wallet", target)
 			return nil
 		},
 	}
@@ -1344,6 +1347,10 @@ func safeTruncW(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+func base64URLEncode(b []byte) string {
+	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 func stellarExplorerURL(address string, network models.Network) string {

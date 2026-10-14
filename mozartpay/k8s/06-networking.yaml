@@ -83,13 +83,6 @@ spec:
   - host: mozartpay.example.com
     http:
       paths:
-      - path: /webauthn(/|$)(.*)
-        pathType: Prefix
-        backend:
-          service:
-            name: webauthn
-            port:
-              number: 8000
       - path: /mcp(/|$)(.*)
         pathType: Prefix
         backend:
@@ -114,13 +107,6 @@ spec:
   - host: api.mozartpay.example.com
     http:
       paths:
-      - path: /webauthn
-        pathType: Prefix
-        backend:
-          service:
-            name: webauthn
-            port:
-              number: 8000
       - path: /mcp
         pathType: Prefix
         backend:
@@ -156,10 +142,6 @@ spec:
   selector:
     app.kubernetes.io/name: mozartpay
   ports:
-  - name: webauthn
-    port: 80
-    targetPort: 8000
-    protocol: TCP
   - name: mcp
     port: 3000
     targetPort: 3000

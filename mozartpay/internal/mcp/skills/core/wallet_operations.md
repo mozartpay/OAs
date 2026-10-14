@@ -6,26 +6,26 @@ Comprehensive wallet management capabilities for the MozartPay platform, includi
 ## Skills
 
 ### wallet_connect
-**Description**: Connect wallet via passkey, stellar keypair, or external address provider
+**Description**: Connect wallet via stellar keypair or external address provider
 **Category**: wallet_operations
 **MCP Tool**: wallet_connect
 
 **Parameters**:
-- `provider` (enum): wwwallet | stellar | external (default: wwwallet)
+- `provider` (enum): stellar | external (default: stellar)
 - `network` (enum): stellar-testnet | stellar-mainnet | evm-sepolia | evm-mainnet (default: stellar-testnet)
 - `address` (string): External address for external provider (optional)
 
 **Natural Language Patterns**:
-- "connect my wallet with passkey"
-- "import stellar wallet on testnet"
+- "connect a stellar wallet"
+- "create stellar wallet on testnet"
 - "add external wallet address"
-- "set up wwwallet connection"
+- "set up wallet connection"
 - "connect wallet on mainnet"
 
 **Examples**:
 ```bash
-# Passkey connection
-"connect my wallet using passkey"
+# New Stellar wallet
+"connect a stellar wallet on testnet"
 
 # Stellar import
 "import my stellar wallet to testnet"
@@ -38,9 +38,10 @@ Comprehensive wallet management capabilities for the MozartPay platform, includi
 - "Would you like to set this as your active wallet?"
 - "Do you need to fund this wallet from the faucet?"
 - "Should I generate a backup of your wallet keys?"
+- "Would you like to protect this wallet with a passkey?"
 
 **Error Handling**:
-- Missing provider: "I need to know which wallet provider you'd like to use (passkey, stellar, or external)"
+- Missing provider: "I need to know which wallet provider you'd like to use (stellar or external)"
 - Network issues: "Let me check the network connection and try again"
 - Invalid address: "That address doesn't look valid. Can you double-check it?"
 
@@ -272,41 +273,45 @@ Comprehensive wallet management capabilities for the MozartPay platform, includi
 ---
 
 ### wallet_passkey
-**Description**: Manage passkey authentication for wallet
+**Description**: Manage passkey protection for a wallet — the seed is encrypted at rest and a verified WebAuthn assertion unlocks it temporarily
 **Category**: wallet_operations
 **MCP Tool**: wallet_passkey
 
 **Parameters**:
-- `action` (enum): register | verify | remove (default: register)
+- `action` (enum): register | unlock | lock | disable | status (default: status)
 - `address` (string): Wallet address (optional, uses active if omitted)
 
 **Natural Language Patterns**:
-- "register passkey for wallet"
-- "verify my passkey"
-- "remove passkey authentication"
-- "set up biometric login"
+- "protect my wallet with a passkey"
+- "unlock my wallet"
+- "lock my wallet"
+- "disable passkey protection"
 - "enable passkey for wallet"
 
 **Examples**:
 ```bash
-# Register passkey
+# Register passkey protection
 "register passkey for my wallet"
 
-# Verify passkey
-"verify my passkey authentication"
+# Unlock before signing
+"unlock my wallet"
 
-# Remove passkey
-"remove passkey from wallet"
+# Check status
+"show my wallet passkey status"
+
+# Remove protection
+"disable passkey protection on my wallet"
 ```
 
 **Passkey Benefits**:
-- Enhanced security
-- Biometric authentication
-- No password memorization
-- Cross-device synchronization
+- Seed is AES-256-GCM-encrypted at rest
+- Biometric authentication required to unlock
+- Time-limited unlock grants (default 15 minutes)
+- Signing blocked while locked
 
 **Error Handling**:
-- Device not supported: "Your device doesn't support passkeys. Would you like to use an alternative method?"
+- Locked wallet: "This wallet is passkey-protected. Unlock it first with wallet_passkey action=unlock."
+- Device not supported: "Your device doesn't support passkeys."
 - Registration failed: "Passkey registration failed. Let's try again."
 
 ---
@@ -329,7 +334,7 @@ Comprehensive wallet management capabilities for the MozartPay platform, includi
 ### Security Maintenance
 1. **Audit**: "Review wallet security"
 2. **Backup**: "Export important keys"
-3. **Update**: "Refresh passkey authentication"
+3. **Update**: "Check passkey protection status"
 4. **Clean**: "Remove unused wallets"
 
 ## Common Questions
@@ -350,6 +355,6 @@ A: Testnet uses fake XLM for testing, mainnet uses real XLM with actual value.
 
 - Always back up important wallets before making changes
 - Use descriptive names to organize your wallets
-- Enable passkey authentication for enhanced security
+- Enable passkey protection for enhanced security (unlock before signing)
 - Keep testnet and mainnet wallets separate
 - Regularly audit your wallet collection

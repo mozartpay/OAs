@@ -244,19 +244,24 @@ func newDIDAttestCmd(cfg *config.Config) *Command {
 			if *useWalletKey {
 				ws := wallet.NewService()
 				acc, werr := ws.GetActiveWallet()
-				if werr != nil || acc.PrivateKey == "" {
-					spin.Stop(false, "No active wallet with private key found")
+				if werr != nil {
+					spin.Stop(false, "No active wallet found")
 					return fmt.Errorf("no active wallet: %w", werr)
 				}
+				seed, serr2 := wallet.ResolveSeed(acc)
+				if serr2 != nil {
+					spin.Stop(false, "No usable wallet key")
+					return serr2
+				}
 				if *proofType == proofTypeJWS {
-					key, kerr := mpCrypto.DeriveKeyFromSeed(acc.PrivateKey)
+					key, kerr := mpCrypto.DeriveKeyFromSeed(seed)
 					if kerr != nil {
 						spin.Stop(false, "Key derivation failed")
 						return kerr
 					}
 					svc = did.NewServiceWithECDSAKey(key)
 				} else {
-					s, serr := did.NewServiceWithStellarSeed(acc.PrivateKey)
+					s, serr := did.NewServiceWithStellarSeed(seed)
 					if serr != nil {
 						spin.Stop(false, "Stellar seed error: "+serr.Error())
 						return serr

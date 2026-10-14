@@ -33,10 +33,10 @@ go mod tidy             # Tidy modules
 |------|-------------|
 | `cmd/mozartpay/` | CLI entrypoint and command definitions |
 | `cmd/mozartpay/commands/` | All CLI commands (one file per command group) |
-| `cmd/webauthn-server/` | WebAuthn/FIDO2 server for passkey authentication |
 | `internal/soroban/` | Pure-Go Soroban RPC client (deploy, invoke, simulate) |
 | `internal/mcp/` | MCP server, tools, handlers, and skills |
-| `internal/wallet/` | Wallet management (Stellar, wwWallet, EOA) |
+| `internal/webauthn/` | WebAuthn RP ceremonies (register/assert) over an ephemeral loopback server |
+| `internal/wallet/` | Wallet management (Stellar, EOA) + passkey seed protection (`passkey.go`) |
 | `internal/did/` | DID creation, VC attestation, on-chain registry client (`registry.go`) |
 | `internal/models/` | Data models (Account, Config, etc.) |
 | `internal/config/` | Config load/save (`~/.mozartpay/config.json`) |
@@ -52,7 +52,7 @@ go mod tidy             # Tidy modules
 | `contracts/did_registry/` | DID Registry contract (workspace member) |
 | `contracts/dist/` | Compiled `.wasm` binaries |
 | `k8s/` | Kubernetes deployment manifests |
-| `Dockerfile` | Multi-service Docker builds (CLI, MCP, WebAuthn) |
+| `Dockerfile` | Multi-service Docker builds (CLI, MCP) |
 | `docker-compose.yml` | Docker Compose orchestration |
 | `test-vectors/` (repo root) | Conformance test vectors — ISO 20022, W3C VC, EBSI validation of CLI outputs (`cd test-vectors && make test`) |
 
@@ -90,7 +90,7 @@ All CLI commands follow the `Command` struct pattern defined in `cmd/mozartpay/c
 
 - Config stored at `~/.mozartpay/config.json` via `internal/config`
 - State files in `~/.mozartpay/state/`
-- Active wallet's `PrivateKey` (Stellar seed `S...`) is used with `keypair.ParseFull()` for signing
+- Seeds are resolved via `wallet.ResolveSeed` — plaintext `PrivateKey`, or the OS-keychain unlock grant for passkey-protected wallets (`PrivateKeyEnc` + `PasskeyProtected`). All keypair loading goes through `LoadStellarKeypair*` in `internal/wallet/loader.go`
 - `cfg.ContractID` stores the last deployed contract ID
 - `cfg.DIDRegistryContractID` stores the deployed DID registry contract ID (set via `mozartpay did set-registry`)
 - `cfg.LastAgreementID` stores the most recent agreement ID

@@ -78,8 +78,8 @@ func newAssetCreateFTCmd(cfg *config.Config) *Command {
 			// Load active wallet to get private key for signing
 			svcWallet := wallet.NewService()
 			acc, err := svcWallet.GetActiveWallet()
-			if err != nil || acc.PrivateKey == "" {
-				ui.Error("No active Stellar wallet with private key found. Please create and fund a Stellar wallet first.")
+			if err != nil {
+				ui.Error("No active Stellar wallet found. Please create and fund a Stellar wallet first.")
 				return fmt.Errorf("wallet required for asset issuance")
 			}
 
@@ -88,9 +88,12 @@ func newAssetCreateFTCmd(cfg *config.Config) *Command {
 				ui.Error("Active wallet is not a Stellar wallet. Please switch to a Stellar wallet first.")
 				return fmt.Errorf("stellar wallet required for asset issuance")
 			}
-			fmt.Printf("DEBUG: Loaded account - Address: %s, PrivateKey first 10 chars: %s...\n", acc.Address, acc.PrivateKey[:10])
+			issuerKey, err := wallet.ResolveSeed(acc)
+			if err != nil {
+				ui.Error(err.Error())
+				return fmt.Errorf("wallet required for asset issuance: %w", err)
+			}
 			issuer := acc.Address
-			issuerKey := acc.PrivateKey
 
 			net := models.Network(*network)
 			svc := assets.NewService()

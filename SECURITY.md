@@ -13,7 +13,7 @@ If you discover a security vulnerability in MozartPay CLI, please report it resp
 
 1. **Do not** open a public GitHub issue
 2. Email **hi@ogtechnologies.co** with a description of the vulnerability, reproduction steps, and potential impact
-3. Include the relevant component (CLI, Soroban client, MCP server, WebAuthn server, Docker, k8s)
+3. Include the relevant component (CLI, Soroban client, MCP server, WebAuthn ceremony, Docker, k8s)
 4. You will receive an acknowledgment within 48 hours
 5. A fix or mitigation will be prioritized based on severity
 
@@ -32,7 +32,7 @@ We follow responsible disclosure. Security researchers will be credited (with pe
 
 ### Wallet Operations
 
-- `keypair.ParseFull(account.PrivateKey)` loads the keypair for signing — the seed is not exposed beyond this point
+- `wallet.ResolveSeed(account)` resolves the seed for signing (plaintext, or an OS-keychain unlock grant for passkey-protected wallets) — the seed is not exposed beyond this point
 - Testnet faucet funding (`mozartpay wallet fund`) only works on `stellar-testnet`
 - Mainnet operations require an explicitly connected wallet with a funded account
 - The active wallet address (`G...`) is safe to display; the private seed (`S...`) is never shown
@@ -55,20 +55,26 @@ We follow responsible disclosure. Security researchers will be credited (with pe
 
 ---
 
-## WebAuthn / FIDO2
+## Passkey Protection (WebAuthn / FIDO2)
 
-### Passkey Authentication
+### Seed Encryption at Rest
 
-- The WebAuthn server (`cmd/webauthn-server/`) provides FIDO2/WebAuthn credential registration and verification
-- Passkeys are device-bound and require user presence (touch/biometric) for authentication
-- The server runs as a separate Docker service (`Dockerfile.webauthn`) on port 8000
-- Health checks are configured for Docker and Kubernetes deployments
+- `mozartpay wallet passkey register` encrypts the Stellar seed with **AES-256-GCM** and stores only the ciphertext (`privateKeyEnc`) in the wallet file — the plaintext seed is removed
+- The encryption key is a random 32-byte value stored in the **OS keychain** (macOS Keychain, Windows Credential Manager, Linux Secret Service) under the `mozartpay` service
+- Passkey credentials are stored at `~/.mozartpay/state/passkeys/<address>.json` with `0600` permissions
 
-### Credential Storage
+### Verified Local Ceremonies
 
-- WebAuthn credentials are associated with the user's Stellar account
-- Credential registration requires a signed challenge from the user's device
-- Authentication verifies the signed challenge against the registered credential
+- Registration and authentication run real WebAuthn ceremonies via `github.com/go-webauthn/webauthn` on an **ephemeral loopback server** (`localhost:0`) — no external server or third-party service
+- Ceremony endpoints are protected by a random session token and time out after ~2 minutes
+- User verification is **required** (biometric/PIN); attestation is not requested (`PreferNoAttestation`)
+
+### Unlock Grants
+
+- A successful assertion writes a **time-limited unlock grant** (default 15 minutes) to the OS keychain — signing works only while a grant is live
+- `mozartpay wallet passkey lock` drops the grant immediately; grants are deleted on expiry
+- All signing paths funnel through `wallet.ResolveSeed` — a locked protected wallet fails with an "unlock first" error instead of signing
+- `mozartpay wallet passkey disable` requires a fresh assertion, restores the plaintext seed, and deletes all passkey state
 
 ---
 
@@ -96,7 +102,6 @@ We follow responsible disclosure. Security researchers will be credited (with pe
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| WebAuthn | 8000 | FIDO2/passkey authentication |
 | MCP | 3000 | AI assistant integration (SSE) |
 | PostgreSQL | 5432 | Database (internal only) |
 | Redis | 6379 | Cache (internal only) |

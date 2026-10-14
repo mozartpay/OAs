@@ -780,32 +780,65 @@ func (s *Server) handleWalletConnect(ctx context.Context, args map[string]interf
 	network, _ := getStringArg(args, "network")
 	address, _ := getStringArg(args, "address")
 
-	// Default provider if not specified
 	if provider == "" {
-		provider = "wwwallet"
+		provider = "stellar"
+	}
+	if network == "" {
+		network = string(models.NetworkStellarTestnet)
 	}
 
-	// TODO: Implement actual wallet connection logic
+	var acc *models.Account
+	var err error
+	switch provider {
+	case "stellar":
+		acc, err = s.walletSvc.ConnectStellarWallet(models.Network(network))
+	case "external":
+		acc, err = s.walletSvc.ConnectExternalEOA(address, models.Network(network))
+	default:
+		return nil, fmt.Errorf("unknown provider %q (supported: stellar, external)", provider)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.walletSvc.AddWalletToRegistry(acc, true); err != nil {
+		return nil, fmt.Errorf("failed to save wallet: %w", err)
+	}
+
 	return map[string]interface{}{
 		"provider": provider,
-		"network":  network,
-		"address":  address,
+		"network":  string(acc.Network),
+		"address":  acc.Address,
 		"status":   "connected",
-		"message":  fmt.Sprintf("Wallet connected via %s on %s", provider, network),
+		"message":  fmt.Sprintf("Wallet connected via %s on %s", provider, acc.Network),
 	}, nil
 }
 
 func (s *Server) handleWalletImport(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	_, _ = getStringArg(args, "secret")
+	secret, _ := getStringArg(args, "secret")
 	name, _ := getStringArg(args, "name")
 	network, _ := getStringArg(args, "network")
 
-	// TODO: Implement actual wallet import logic
-	// For now, return a simulated response
+	if network == "" {
+		network = string(models.NetworkStellarTestnet)
+	}
+
+	acc, err := s.walletSvc.ImportStellarFromSecret(secret, models.Network(network))
+	if err != nil {
+		return nil, err
+	}
+	if err := s.walletSvc.AddWalletToRegistry(acc, true); err != nil {
+		return nil, fmt.Errorf("failed to save wallet: %w", err)
+	}
+	if name != "" {
+		if err := s.walletSvc.RenameWallet(acc.Address, name); err != nil {
+			return nil, fmt.Errorf("failed to name wallet: %w", err)
+		}
+	}
+
 	return map[string]interface{}{
 		"name":    name,
 		"network": network,
-		"address": "G" + "A" + "B" + "C" + "D" + "E" + "F" + "1234567890ABCDEFGHIJKLMN", // Mock address
+		"address": acc.Address,
 		"status":  "imported",
 		"message": "Wallet imported successfully",
 	}, nil
@@ -820,14 +853,30 @@ func (s *Server) handleWalletFund(ctx context.Context, args map[string]interface
 		return nil, fmt.Errorf("funding only available on testnet")
 	}
 
-	// TODO: Implement actual faucet funding logic
+	var acc *models.Account
+	var err error
+	if address != "" {
+		acc, err = s.walletSvc.GetWalletByAddress(address)
+	} else {
+		acc, err = s.walletSvc.GetActiveWallet()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("wallet not found: %w", err)
+	}
+	if network != "" {
+		acc.Network = models.Network(network)
+	}
+
+	funded, err := s.walletSvc.FundTestnetAccount(acc)
+	if err != nil {
+		return nil, err
+	}
+
 	return map[string]interface{}{
-		"address": address,
-		"network": network,
-		"amount":  "10000",
-		"asset":   "XLM",
+		"address": funded.Address,
+		"network": string(funded.Network),
+		"balance": funded.Balance,
 		"status":  "funded",
-		"tx_hash": "mock_tx_hash_123456789",
 		"message": "Wallet funded from testnet faucet",
 	}, nil
 }
@@ -835,9 +884,17 @@ func (s *Server) handleWalletFund(ctx context.Context, args map[string]interface
 func (s *Server) handleWalletSwitch(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	address, _ := getStringArg(args, "address")
 
-	// TODO: Implement actual wallet switching logic
+	previous := ""
+	if acc, err := s.walletSvc.GetActiveWallet(); err == nil {
+		previous = acc.Address
+	}
+
+	if err := s.walletSvc.SetActiveWallet(address); err != nil {
+		return nil, err
+	}
+
 	return map[string]interface{}{
-		"previous_active": "GPREVIOUSWALLETADDRESS1234567890ABCDEFGHIJKLMN",
+		"previous_active": previous,
 		"new_active":      address,
 		"status":          "switched",
 		"message":         fmt.Sprintf("Switched to wallet %s", address),
@@ -848,10 +905,12 @@ func (s *Server) handleWalletRename(ctx context.Context, args map[string]interfa
 	address, _ := getStringArg(args, "address")
 	name, _ := getStringArg(args, "name")
 
-	// TODO: Implement actual wallet renaming logic
+	if err := s.walletSvc.RenameWallet(address, name); err != nil {
+		return nil, err
+	}
+
 	return map[string]interface{}{
 		"address":  address,
-		"old_name": "Old Wallet Name",
 		"new_name": name,
 		"status":   "renamed",
 		"message":  fmt.Sprintf("Wallet renamed to '%s'", name),
@@ -867,7 +926,10 @@ func (s *Server) handleWalletRemove(ctx context.Context, args map[string]interfa
 		return nil, fmt.Errorf("confirmation required to remove wallet")
 	}
 
-	// TODO: Implement actual wallet removal logic
+	if err := s.walletSvc.RemoveWallet(address); err != nil {
+		return nil, err
+	}
+
 	return map[string]interface{}{
 		"address": address,
 		"status":  "removed",
@@ -884,11 +946,25 @@ func (s *Server) handleWalletExport(ctx context.Context, args map[string]interfa
 		return nil, fmt.Errorf("confirmation required to export private key")
 	}
 
-	// TODO: Implement actual wallet export logic
-	// For now, return a mock private key (DO NOT USE IN PRODUCTION)
+	var acc *models.Account
+	var err error
+	if address != "" {
+		acc, err = s.walletSvc.GetWalletByAddress(address)
+	} else {
+		acc, err = s.walletSvc.GetActiveWallet()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("wallet not found: %w", err)
+	}
+
+	seed, err := wallet.ResolveSeed(acc)
+	if err != nil {
+		return nil, err
+	}
+
 	return map[string]interface{}{
-		"address":     address,
-		"private_key": "S" + "SECRET" + "KEY" + "1234567890ABCDEFGHIJKLMN", // Mock private key
+		"address":     acc.Address,
+		"private_key": seed,
 		"warning":     "KEEP THIS PRIVATE KEY SECURE",
 		"status":      "exported",
 		"message":     "Private key exported - store securely",
@@ -899,12 +975,50 @@ func (s *Server) handleWalletPasskey(ctx context.Context, args map[string]interf
 	action, _ := getStringArg(args, "action")
 	address, _ := getStringArg(args, "address")
 
-	// Default action if not specified
 	if action == "" {
-		action = "register"
+		action = "status"
+	}
+	if address == "" {
+		acc, err := s.walletSvc.GetActiveWallet()
+		if err != nil {
+			return nil, fmt.Errorf("no active wallet: %w", err)
+		}
+		address = acc.Address
 	}
 
-	// TODO: Implement actual passkey management logic
+	switch action {
+	case "register":
+		if _, err := s.walletSvc.RegisterPasskey(address); err != nil {
+			return nil, err
+		}
+	case "unlock":
+		if err := s.walletSvc.Unlock(address, 0); err != nil {
+			return nil, err
+		}
+	case "lock":
+		if err := s.walletSvc.Lock(address); err != nil {
+			return nil, err
+		}
+	case "disable":
+		if err := s.walletSvc.DisablePasskey(address); err != nil {
+			return nil, err
+		}
+	case "status":
+		st, err := s.walletSvc.GetPasskeyStatus(address)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{
+			"action":    action,
+			"address":   address,
+			"protected": st.Protected,
+			"unlocked":  st.Unlocked,
+			"status":    "success",
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown action %q (register|unlock|lock|disable|status)", action)
+	}
+
 	return map[string]interface{}{
 		"action":  action,
 		"address": address,

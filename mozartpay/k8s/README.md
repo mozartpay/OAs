@@ -9,7 +9,6 @@ k8s/
 ├── 00-namespace.yaml      # Namespace, ConfigMaps, Secrets, RBAC
 ├── 01-postgres.yaml        # PostgreSQL database deployment
 ├── 02-redis.yaml           # Redis cache deployment
-├── 03-webauthn.yaml        # WebAuthn service with autoscaling
 ├── 04-mcp.yaml             # MCP server (SSE + stdio Job)
 ├── 05-horizon.yaml         # Stellar Horizon instances
 ├── 06-networking.yaml      # Ingress, NetworkPolicy, Services
@@ -21,7 +20,7 @@ k8s/
 The manifests are numbered to ensure proper deployment order:
 
 1. **Infrastructure** (00-02): Namespace, database, cache
-2. **Application Services** (03-05): WebAuthn, MCP, Horizon
+2. **Application Services** (04-05): MCP, Horizon
 3. **Networking** (06): Ingress and network policies
 4. **Monitoring** (07): Prometheus and Grafana
 
@@ -40,7 +39,6 @@ kubectl apply -f k8s/01-postgres.yaml
 kubectl apply -f k8s/02-redis.yaml
 
 # Services
-kubectl apply -f k8s/03-webauthn.yaml
 kubectl apply -f k8s/04-mcp.yaml
 kubectl apply -f k8s/05-horizon.yaml
 
@@ -60,7 +58,6 @@ kubectl get pods -n mozartpay -w
 ### Access Services
 ```bash
 # Port forwarding
-kubectl port-forward service/webauthn 8000:8000 -n mozartpay
 kubectl port-forward service/mcp-sse 3000:3000 -n mozartpay
 kubectl port-forward service/horizon-testnet 8001:8000 -n mozartpay
 
@@ -102,14 +99,12 @@ Adjust resource requests and limits in each deployment manifest based on your cl
 
 All services include HPA configuration:
 
-- **WebAuthn**: 2-10 replicas
 - **MCP**: 2-8 replicas  
 - **Horizon**: 1-5 replicas
 
 ### Manual Scaling
 
 ```bash
-kubectl scale deployment webauthn --replicas=5 -n mozartpay
 kubectl scale deployment mcp-sse --replicas=4 -n mozartpay
 kubectl scale deployment horizon-testnet --replicas=3 -n mozartpay
 ```
@@ -119,7 +114,6 @@ kubectl scale deployment horizon-testnet --replicas=3 -n mozartpay
 ### Prometheus Metrics
 
 Access Prometheus metrics at:
-- WebAuthn: http://localhost:8000/metrics
 - MCP: http://localhost:3000/metrics
 - Horizon: http://localhost:8001/metrics
 
@@ -182,16 +176,16 @@ All sensitive data stored in Kubernetes secrets with proper access controls.
 
 ```bash
 # View logs
-kubectl logs -f deployment/webauthn -n mozartpay
+kubectl logs -f deployment/mcp-sse -n mozartpay
 
 # Exec into container
-kubectl exec -it deployment/webauthn -n mozartpay -- sh
+kubectl exec -it deployment/mcp-sse -n mozartpay -- sh
 
 # Check events
 kubectl get events -n mozartpay --sort-by=.lastTimestamp
 
 # Describe resources
-kubectl describe deployment/webauthn -n mozartpay
+kubectl describe deployment/mcp-sse -n mozartpay
 ```
 
 ## Customization

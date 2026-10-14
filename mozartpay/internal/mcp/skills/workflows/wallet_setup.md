@@ -15,7 +15,7 @@ Complete wallet setup and onboarding workflow for new users of the MozartPay pla
 - "get started with MozartPay"
 
 **Assessment Questions**:
-- What type of wallet do you prefer? (passkey, stellar, external)
+- What type of wallet do you prefer? (stellar, external)
 - Which network do you want to start on? (testnet recommended for beginners)
 - Do you have an existing wallet to import?
 - What will you primarily use this wallet for?
@@ -27,8 +27,7 @@ Complete wallet setup and onboarding workflow for new users of the MozartPay pla
 **First, let me understand your needs:**
 
 1. **Wallet Type Preference:**
-   • 📱 Passkey (biometric, most secure)
-   • 🔑 Stellar (traditional keypair)
+   •  Stellar (native keypair, recommended)
    • 🔗 External (existing address)
 
 2. **Network Choice:**
@@ -41,7 +40,7 @@ Complete wallet setup and onboarding workflow for new users of the MozartPay pla
    • 🔴 Advanced (specific needs)
 
 **My Recommendation for New Users:**
-Start with a passkey wallet on testnet - it's the most secure and you can get free XLM to practice!
+Start with a Stellar wallet on testnet - you can get free XLM to practice, and add passkey protection for extra security!
 
 Which option sounds right for you?
 ```
@@ -53,19 +52,7 @@ Which option sounds right for you?
 
 **Implementation Paths**:
 
-#### Pathkey Wallet (Recommended)
-**Commands**:
-```bash
-"connect wallet with passkey on testnet"
-```
-
-**Process**:
-1. Initialize passkey authentication
-2. Generate biometric challenge
-3. Create wallet account
-4. Set up security defaults
-
-**Stellar Wallet**
+**Stellar Wallet (Recommended)**
 **Commands**:
 ```bash
 "create new stellar wallet on testnet"
@@ -74,7 +61,7 @@ Which option sounds right for you?
 **Process**:
 1. Generate new keypair
 2. Create Stellar account
-3. Display recovery phrase
+3. Offer passkey protection setup
 4. Set up security options
 
 **External Wallet**
@@ -116,16 +103,16 @@ This usually takes about [time_estimate]. I'll let you know when it's ready!
 **Objective**: Configure security settings and backup options
 
 **Security Configuration**:
-- Backup phrase generation
-- Passkey registration
+- Passkey protection (seed encryption at rest)
+- Backup/export of the seed
 - Multi-signature setup (optional)
 - Security preferences
 
 **Commands**:
 ```bash
 "set up wallet security"
-"enable passkey authentication"
-"create backup phrase"
+"protect my wallet with a passkey"
+"export wallet backup"
 "setup multi-signature"
 ```
 
@@ -134,18 +121,18 @@ This usually takes about [time_estimate]. I'll let you know when it's ready!
 🔒 **Security Setup - Protect Your Wallet**
 
 **Essential Security:**
-1. **Backup Phrase**: 24-word recovery phrase
-2. **Passkey**: Biometric authentication
+1. **Passkey Protection**: Encrypts the seed at rest; biometric unlock required to sign
+2. **Seed Backup**: Export the Stellar seed for recovery
 3. **Access Control**: Who can access this wallet
 
-**Backup Phrase (Save This Securely!):**
-[backup_phrase_display]
+**Seed (Save This Securely!):**
+[seed_display]
 
 ⚠️ **Critical Warning:**
-Write this down and store it in a secure location. Anyone with this phrase can access your wallet.
+Write this down and store it in a secure location. Anyone with this seed can access your wallet.
 
 **Security Options:**
-• 📱 Enable passkey (recommended)
+• 📱 Enable passkey protection (recommended)
 • 🔐 Set up multi-signature (high security)
 • 📋 Export backup keys (advanced)
 
@@ -309,7 +296,7 @@ I can configure recommended settings based on your usage patterns, or you can cu
 "set up complete wallet for me as a beginner"
 
 # With preferences
-"set up wallet with passkey on testnet with security defaults"
+"set up wallet with passkey protection on testnet with security defaults"
 ```
 
 **Automated Process**:
@@ -362,7 +349,7 @@ I can configure recommended settings based on your usage patterns, or you can cu
 **Solutions**:
 ```bash
 "check device compatibility"
-"verify passkey support"
+"check passkey protection status"
 "reset security settings"
 ```
 

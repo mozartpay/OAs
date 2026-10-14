@@ -166,7 +166,7 @@ pub struct WalletLayer {
     pub stellar_address: Address,       // Primary Stellar address
     pub secondary_addresses: Vec<Address>, // Additional signers
     pub passkey_enabled: bool,          // WebAuthn/FIDO2 enabled
-    pub wallet_type: Symbol,            // wwwallet/external/testnet
+    pub wallet_type: Symbol,            // stellar/external/testnet
     pub funded: bool,                   // Account has minimum balance
     pub required_signers: u32,          // Multi-sig threshold
 }
@@ -647,7 +647,7 @@ impl OrchestratedAgreementContract {
     /// # Arguments
     /// * `agreement_id` - The agreement to update
     /// * `stellar_address` - Primary Stellar address
-    /// * `wallet_type` - Type of wallet (wwwallet/external/testnet)
+    /// * `wallet_type` - Type of wallet (stellar/external/testnet)
     /// * `passkey_enabled` - Whether WebAuthn/FIDO2 is enabled
     /// * `required_signers` - Multi-sig threshold (1 for single-sig)
     pub fn connect_wallet(

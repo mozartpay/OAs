@@ -15,7 +15,7 @@ a built-in MCP server for AI assistant integration, and WebAuthn/FIDO2 passkey s
 
 ```
 [01] Identity    →  DID Attestation (web/key/ethr/ebsi) + National ID VC
-[02] Wallet      →  wwWallet (passkey) + Stellar (native) + EOA + Testnet Faucet
+[02] Wallet      →  Stellar (native) + EOA + Passkey Protection + Testnet Faucet
 [03] Payments    →  x402 · Tempo FX · Direct Stellar
      Assets      →  SAC/SEP-41 Fungible + Non-Fungible
 [04] Contracts   →  Soroban Smart Contracts (deploy, invoke, simulate)
@@ -27,12 +27,12 @@ a built-in MCP server for AI assistant integration, and WebAuthn/FIDO2 passkey s
 ## Features
 
 - **DID Attestation** — Create and verify W3C DIDs (web, key, ethr, ebsi) with National ID Verifiable Credentials
-- **Wallet Management** — Connect wwWallet, Stellar native, or external EOA; testnet faucet funding
+- **Wallet Management** — Connect Stellar native or external EOA; passkey seed protection; testnet faucet funding
 - **Payments** — x402 pay-per-use, Tempo FX quotes, direct Stellar payments
 - **Asset Creation** — SEP-41 fungible tokens and non-fungible assets with OA score and carbon credits
 - **Soroban Contracts** — Deploy any `.wasm` file, invoke contract methods, simulate read-only queries — all in pure Go
 - **MCP Server** — Expose CLI functionality as tools for AI assistants via stdio or SSE transport
-- **WebAuthn/FIDO2** — Passkey-based authentication server
+- **Passkey Protection** — WebAuthn/FIDO2 passkeys encrypt the Stellar seed at rest (AES-256-GCM, OS keychain)
 - **Compliance Reporting** — VC-linked audit trails, ISO 20022 pacs.008 XML export
 - **Integrations** — OA Score, StellarCarbon, x402, Tempo FX
 
@@ -50,7 +50,7 @@ make build              # → dist/mozartpay
 make install            # → $(GOPATH)/bin/mozartpay
 
 # Docker
-docker compose up       # Start all services (MCP, WebAuthn, PostgreSQL, Redis)
+docker compose up       # Start all services (MCP, PostgreSQL, Redis)
 
 # Kubernetes
 # See k8s/README.md for deployment instructions
@@ -109,7 +109,8 @@ make demo-full
 
 | Command | Description |
 |---------|-------------|
-| `mozartpay wallet connect` | Connect wwWallet, Stellar, or external EOA |
+| `mozartpay wallet connect` | Connect Stellar or external EOA |
+| `mozartpay wallet passkey` | Passkey protection (register/unlock/lock/status/disable) |
 | `mozartpay wallet fund` | Fund testnet account via faucet |
 | `mozartpay wallet balance` | Query account balance |
 
@@ -229,7 +230,7 @@ mozartpay contract create-agreement --dispute-window 86400
 mozartpay contract attest-identity --did did:web:example.com --method web --vc-type national_id
 
 # Connect wallet
-mozartpay contract connect-wallet --type wwwallet --passkey
+mozartpay contract connect-wallet --type stellar --passkey
 
 # Fund asset
 mozartpay contract fund-asset --asset USDC --amount 100 --locked 0
@@ -296,7 +297,7 @@ The Soroban smart contracts are written in Rust and located in `contracts/`.
 
 The main contract implements the 5-layer Orchestrated Agreement flow:
 1. **Identity** — DID attestation with Verifiable Credentials
-2. **Wallet** — WebAuthn/passkey wallet connection
+2. **Wallet** — Wallet connection (passkey-protected seeds supported)
 3. **Assets** — SAC/SEP-41 fungible/non-fungible asset funding
 4. **Integrations** — OA Score, StellarCarbon, x402, Tempo
 5. **Reporting** — On-chain audit trail, ISO 20022 compliance
@@ -305,21 +306,19 @@ The main contract implements the 5-layer Orchestrated Agreement flow:
 
 ### Docker
 
-Multi-service Dockerfile supports three images:
+Multi-service Dockerfile supports these images:
 - **CLI** — MozartPay CLI binary
 - **MCP** — MCP server with SSE transport (port 3000)
-- **WebAuthn** — WebAuthn/FIDO2 server (port 8000)
 
 ```bash
 docker compose up              # All services
 docker compose up mcp          # MCP server only
-docker compose up webauthn     # WebAuthn server only
 ```
 
 ### Kubernetes
 
 Kubernetes manifests in `k8s/` include:
-- Namespace, PostgreSQL, Redis, WebAuthn, MCP, Horizon, Networking, Monitoring, Ollama
+- Namespace, PostgreSQL, Redis, MCP, Horizon, Networking, Monitoring, Ollama
 
 See `k8s/README.md` for detailed deployment instructions.
 

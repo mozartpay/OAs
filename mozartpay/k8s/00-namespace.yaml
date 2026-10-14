@@ -19,7 +19,7 @@ data:
   config.json: |
     {
       "network": "stellar-testnet",
-      "walletType": "wwwallet",
+      "walletType": "stellar",
       "didMethod": "key",
       "integrations": {
         "stellarCarbonEnabled": true,

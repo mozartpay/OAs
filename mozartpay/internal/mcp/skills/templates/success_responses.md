@@ -126,7 +126,7 @@ Standardized response templates for successful operations, providing clear confi
 • Status: [connection_status]
 
 **Security Setup:**
-• Passkey: [passkey_status]
+• Passkey Protection: [passkey_status]
 • Backup: [backup_status]
 • Multi-sig: [multisig_status]
 
@@ -317,7 +317,7 @@ Standardized response templates for successful operations, providing clear confi
 🔒 **Security Configuration Complete!**
 
 **Security Features Enabled:**
-• Passkey Authentication: ✅ [passkey_status]
+• Passkey Protection: ✅ [passkey_status]
 • Multi-signature: ✅ [multisig_status]
 • Backup Phrase: ✅ [backup_status]
 • Access Control: ✅ [access_control_status]
@@ -348,7 +348,7 @@ Standardized response templates for successful operations, providing clear confi
 • Review security best practices
 
 **Quick Actions:**
-• "test passkey authentication"
+• "check passkey status"
 • "set up transaction alerts"
 • "view security settings"
 ```

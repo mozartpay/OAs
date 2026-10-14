@@ -6,7 +6,6 @@ This directory contains the complete Kubernetes deployment configuration for Moz
 
 The deployment includes the following services:
 
-- **WebAuthn Server** - Passkey authentication service (port 8000)
 - **MCP Server** - Model Context Protocol for AI integration (port 3000)
 - **Horizon Instances** - Stellar network connectivity (port 8000)
 - **PostgreSQL** - Primary database for persistent storage
@@ -39,7 +38,6 @@ The deployment includes the following services:
 3. **Access services:**
    ```bash
    # Port forwarding for local access
-   kubectl port-forward service/webauthn 8000:8000 -n mozartpay
    kubectl port-forward service/mcp-sse 3000:3000 -n mozartpay
    kubectl port-forward service/horizon-testnet 8001:8000 -n mozartpay
    ```
@@ -52,17 +50,6 @@ To remove all deployed resources:
 ```
 
 ## Service Details
-
-### WebAuthn Service
-
-- **Image**: `mozartpay/webauthn:latest`
-- **Replicas**: 2 (auto-scalable to 10)
-- **Port**: 8000
-- **Health Check**: `/health` endpoint
-- **Features**: 
-  - Horizontal Pod Autoscaling
-  - Liveness and readiness probes
-  - Security context with non-root user
 
 ### MCP Server
 
@@ -109,7 +96,6 @@ The deployment includes an NGINX ingress controller with:
 - **SSL Termination**: Automatic HTTPS with Let's Encrypt
 - **Rate Limiting**: 100 requests per minute
 - **Path-based Routing**: 
-  - `/webauthn/*` → WebAuthn service
   - `/mcp/*` → MCP service
   - `/horizon-testnet/*` → Horizon service
 
@@ -143,7 +129,7 @@ The deployment includes an NGINX ingress controller with:
 
 ### Alerting Rules
 
-- **Critical**: WebAuthn/MCP service down
+- **Critical**: MCP service down
 - **Warning**: Horizon service down, high resource usage
 - **Thresholds**: 90% memory, 80% CPU usage
 
@@ -172,7 +158,6 @@ The deployment includes an NGINX ingress controller with:
 
 ### Horizontal Pod Autoscaling
 
-- **WebAuthn**: 2-10 replicas (70% CPU, 80% memory)
 - **MCP**: 2-8 replicas (70% CPU, 80% memory)
 - **Horizon**: 1-5 replicas (70% CPU, 80% memory)
 
@@ -180,7 +165,6 @@ The deployment includes an NGINX ingress controller with:
 
 | Service | CPU Request | CPU Limit | Memory Request | Memory Limit |
 |---------|-------------|-----------|---------------|--------------|
-| WebAuthn | 100m | 200m | 128Mi | 256Mi |
 | MCP | 200m | 400m | 256Mi | 512Mi |
 | Horizon | 300m | 600m | 512Mi | 1Gi |
 | PostgreSQL | 250m | 500m | 256Mi | 512Mi |
@@ -230,16 +214,16 @@ Key configuration options:
 
 ```bash
 # View pod logs
-kubectl logs -f deployment/webauthn -n mozartpay
+kubectl logs -f deployment/mcp-sse -n mozartpay
 
 # Exec into pod
-kubectl exec -it deployment/webauthn -n mozartpay -- sh
+kubectl exec -it deployment/mcp-sse -n mozartpay -- sh
 
 # Check events
 kubectl get events -n mozartpay --sort-by='.lastTimestamp'
 
 # Describe resources
-kubectl describe deployment/webauthn -n mozartpay
+kubectl describe deployment/mcp-sse -n mozartpay
 ```
 
 ## Development
@@ -259,7 +243,6 @@ This starts all services with local networking and volumes.
 ```bash
 # Build all images
 docker build -f Dockerfile -t mozartpay/cli:latest --target cli .
-docker build -f Dockerfile.webauthn -t mozartpay/webauthn:latest --target webauthn .
 docker build -f Dockerfile.mcp -t mozartpay/mcp:latest --target mcp .
 ```
 

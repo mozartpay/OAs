@@ -146,6 +146,9 @@ func (s *Service) payDirect(from, to, amount, asset string, net models.Network, 
 	// Load keypair for the specific from address to ensure correct wallet is used
 	kp, err := wallet.LoadStellarKeypairForAddress(from)
 	if err != nil {
+		if isProtectedWallet(from) {
+			return nil, err
+		}
 		fmt.Printf("[DEBUG] No keypair found for address %s, using simulated: %v\n", from, err)
 		return s.payDirectSimulated(from, to, amount, asset, net, memo)
 	}
@@ -277,6 +280,9 @@ func (s *Service) payZK(from, to, amount, asset string, net models.Network, memo
 	// Load keypair for the specific from address to ensure correct wallet is used
 	kp, err := wallet.LoadStellarKeypairForAddress(from)
 	if err != nil {
+		if isProtectedWallet(from) {
+			return nil, err
+		}
 		// No real keypair for this address — fall back to simulated ZK payment
 		return s.payZKSimulated(from, to, amount, asset, net, memo)
 	}
@@ -464,6 +470,20 @@ func (s *Service) loadStellarKeypair() (*keypair.Full, error) {
 	return wallet.LoadStellarKeypair()
 }
 
+// isProtectedWallet reports whether the address is a passkey-protected wallet.
+// A protected wallet that is locked must surface the unlock error — never fall
+// back to a simulated payment that claims on-chain confirmation.
+func isProtectedWallet(address string) bool {
+	acc, err := wallet.NewService().GetWalletByAddress(address)
+	return err == nil && acc.PasskeyProtected
+}
+
+// activeWalletProtected reports whether the active wallet is passkey-protected.
+func activeWalletProtected() bool {
+	acc, err := wallet.NewService().GetActiveAccount()
+	return err == nil && acc.PasskeyProtected
+}
+
 // ── Swap ───────────────────────────────────────
 
 func (s *Service) paySwap(from, to, amount, asset string, net models.Network, memo string) (*models.Payment, error) {
@@ -478,6 +498,9 @@ func (s *Service) paySwap(from, to, amount, asset string, net models.Network, me
 	// Check if keypair exists
 	_, err := s.loadStellarKeypair()
 	if err != nil {
+		if activeWalletProtected() {
+			return nil, err
+		}
 		// No real keypair — fall back to simulated swap
 		return s.paySwapSimulated(from, to, amount, asset, net, memo)
 	}

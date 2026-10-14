@@ -104,12 +104,12 @@ func (s *Server) registerWalletTools() {
 		InputSchema: buildInputSchema(map[string]interface{}{}, nil),
 	}, s.handleWalletAssets)
 
-	// wallet_connect - Connect wallet via passkey, stellar, or external
+	// wallet_connect - Connect wallet via stellar keypair or external address
 	s.RegisterTool(Tool{
 		Name:        "wallet_connect",
-		Description: "Connect wallet via passkey, stellar keypair, or external address",
+		Description: "Connect wallet via stellar keypair or external address",
 		InputSchema: buildInputSchema(map[string]interface{}{
-			"provider": createEnumSchema("Wallet provider", []string{"wwwallet", "stellar", "external"}, ""),
+			"provider": createEnumSchema("Wallet provider", []string{"stellar", "external"}, ""),
 			"network":  createEnumSchema("Network", []string{"stellar-testnet", "stellar-mainnet", "evm-sepolia", "evm-mainnet"}, "stellar-testnet"),
 			"address":  createStringSchema("External address (for --provider external)", false),
 		}, []string{}),
@@ -175,12 +175,12 @@ func (s *Server) registerWalletTools() {
 		}, []string{}),
 	}, s.handleWalletExport)
 
-	// wallet_passkey - Manage passkey authentication
+	// wallet_passkey - Manage passkey protection
 	s.RegisterTool(Tool{
 		Name:        "wallet_passkey",
-		Description: "Manage passkey authentication for wallet",
+		Description: "Manage passkey protection for a wallet (register, unlock, lock, disable, status)",
 		InputSchema: buildInputSchema(map[string]interface{}{
-			"action":  createEnumSchema("Action", []string{"register", "verify", "remove"}, "register"),
+			"action":  createEnumSchema("Action", []string{"register", "unlock", "lock", "disable", "status"}, "status"),
 			"address": createStringSchema("Wallet address (optional, uses active if omitted)", false),
 		}, []string{}),
 	}, s.handleWalletPasskey)

@@ -82,7 +82,7 @@ demo-attest: build
 
 ## demo-wallet: Demo wallet connect + fund
 demo-wallet: build
-	@$(BUILD_DIR)/$(BINARY) wallet connect --provider wwwallet --network stellar-testnet
+	@$(BUILD_DIR)/$(BINARY) wallet connect --provider stellar --network stellar-testnet
 	@$(BUILD_DIR)/$(BINARY) wallet fund --network stellar-testnet
 
 ## demo-asset: Demo asset creation with score and carbon
@@ -118,7 +118,7 @@ demo-full: build
 	@echo "════════════════════════════════════════════"
 	@$(BUILD_DIR)/$(BINARY) init
 	@$(BUILD_DIR)/$(BINARY) did attest --method ebsi --name "Olvis E. Gil Ríos" --country AT
-	@$(BUILD_DIR)/$(BINARY) wallet connect --provider wwwallet --network stellar-testnet
+	@$(BUILD_DIR)/$(BINARY) wallet connect --provider stellar --network stellar-testnet
 	@$(BUILD_DIR)/$(BINARY) wallet fund --network stellar-testnet
 	@$(BUILD_DIR)/$(BINARY) asset create-ft --name "EduToken" --symbol EDU --supply 5000000 --with-score --with-carbon
 	@$(BUILD_DIR)/$(BINARY) pay x402 --resource "https://api.mozartpay.com/v1/edudata" --price 0.001 --asset USDC

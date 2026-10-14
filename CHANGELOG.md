@@ -9,12 +9,18 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Real WebAuthn passkey protection for Stellar wallets via `github.com/go-webauthn/webauthn`: `wallet passkey register|unlock|lock|status|list|disable` — seeds are AES-256-GCM-encrypted at rest, keys and time-limited unlock grants live in the OS keychain, and all signing paths resolve through `wallet.ResolveSeed`
 - `trade dashboard`: network switcher (stellar-testnet/stellar-mainnet) persisted to config, active-wallet picker, `--token` flag / `MOZARTPAY_DASHBOARD_TOKEN` for a fixed session token reused across restarts
 - Dashboard overview is network-scoped: wallet list and bot list are filtered to the selected network, and switching networks auto-activates a matching wallet
+
+### Removed
+
+- wwWallet scaffold/demo: simulated `wwwallet` wallet provider, `cmd/webauthn-server`, `Dockerfile.webauthn`, docker-compose service, and `k8s/03-webauthn.yaml` (plus networking/monitoring references). Legacy `wwwallet` wallets are migrated to `external` on load — they never held real keys
 
 ### Fixed
 
 - `config.Version` is now a `var` so `-ldflags -X` injection from the Makefile takes effect; hardcoded `v0.1.0-mvp` strings in `internal/ui` and `internal/terminal` now render `config.Version`
+- Removed a debug log that leaked the first 10 characters of the wallet private key during asset issuance
 
 ## [0.2.0] - 2026-09-20
 

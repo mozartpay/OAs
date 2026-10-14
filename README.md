@@ -15,7 +15,7 @@ a built-in MCP server for AI assistant integration, and WebAuthn/FIDO2 passkey s
 
 ```
 [01] Identity    →  DID Attestation (web/key/ethr/ebsi) + National ID VC
-[02] Wallet      →  wwWallet (passkey) + Stellar (native) + EOA + Testnet Faucet
+[02] Wallet      →  Stellar (native) + EOA + Passkey Protection + Testnet Faucet
 [03] Payments    →  x402 · Tempo FX · Direct Stellar
      Assets      →  SAC/SEP-41 Fungible + Non-Fungible
 [04] Contracts   →  Soroban Smart Contracts (deploy, invoke, simulate)
@@ -30,7 +30,7 @@ a built-in MCP server for AI assistant integration, and WebAuthn/FIDO2 passkey s
 flowchart TB
     subgraph EXT["EXTERNAL ACTORS & WALLETS"]
         user["CLI Operator<br/><i>Developer / Institution</i>"]:::core
-        wwwallet["wwWallet<br/><i>Passkey / EUDI-style</i>"]:::external
+        passkey["Passkey Authenticator<br/><i>WebAuthn / FIDO2</i>"]:::external
         eoa["External EOA<br/><i>EVM Wallet</i>"]:::external
         verifier["Cross-Border Verifier<br/><i>VC Verification</i>"]:::external
     end
@@ -38,7 +38,7 @@ flowchart TB
     subgraph CLI["MOZARTPAY CLI (Go · Pure-Go Soroban RPC)"]
         router["Command Router<br/><i>did · wallet · pay · contract · asset · mcp · report</i>"]:::core
         identity["Identity Layer<br/><i>DID Attestation · National ID VC</i>"]:::core
-        wallet["Wallet Layer<br/><i>wwWallet · Stellar Native · EOA · Faucet</i>"]:::core
+        wallet["Wallet Layer<br/><i>Stellar Native · Passkey Protection · EOA · Faucet</i>"]:::core
         payments["Payments Layer<br/><i>x402 · Tempo FX · Direct Stellar</i>"]:::core
         assets["Assets Layer<br/><i>SAC / SEP-41 FT + NFA</i>"]:::core
         contracts["Contracts Layer<br/><i>Soroban Deploy · Invoke · Simulate</i>"]:::core
@@ -61,7 +61,7 @@ flowchart TB
     end
 
     user --> router
-    wwwallet --> wallet
+    passkey --> wallet
     eoa --> wallet
     verifier --> identity
 
@@ -94,7 +94,7 @@ flowchart TB
 ```
 
 **Legend:** Blue-bordered components are **external services and integrations** — third-party
-networks and protocols (EBSI v3, x402, Tempo, wwWallet, external EOA) that the CLI orchestrates.
+networks and protocols (EBSI v3, x402, Tempo, passkey authenticators, external EOA) that the CLI orchestrates.
 Gray components are core CLI modules and local state owned by MozartPay itself.
 
 ---
@@ -102,12 +102,12 @@ Gray components are core CLI modules and local state owned by MozartPay itself.
 ## Features
 
 - **DID Attestation** — Create and verify W3C DIDs (web, key, ethr, ebsi) with National ID Verifiable Credentials
-- **Wallet Management** — Connect wwWallet, Stellar native, or external EOA; testnet faucet funding
+- **Wallet Management** — Connect Stellar native or external EOA; passkey seed protection; testnet faucet funding
 - **Payments** — x402 pay-per-use, Tempo FX quotes, direct Stellar payments
 - **Asset Creation** — SEP-41 fungible tokens and non-fungible assets with OA score and carbon credits
 - **Soroban Contracts** — Deploy any `.wasm` file, invoke contract methods, simulate read-only queries — all in pure Go
 - **MCP Server** — Expose CLI functionality as tools for AI assistants via stdio or SSE transport
-- **WebAuthn/FIDO2** — Passkey-based authentication server
+- **Passkey Protection** — WebAuthn/FIDO2 passkeys encrypt the Stellar seed at rest (AES-256-GCM, OS keychain)
 - **Compliance Reporting** — VC-linked audit trails, ISO 20022 pacs.008 XML export
 - **Integrations** — OA Score, StellarCarbon, x402, Tempo FX
 - **VC API Server** — W3C VC API-compliant HTTP endpoints for conformance testing
@@ -131,7 +131,7 @@ make build              # → dist/mozartpay
 make install            # → $(GOPATH)/bin/mozartpay
 
 # Docker
-docker compose up       # Start all services (MCP, WebAuthn, PostgreSQL, Redis)
+docker compose up       # Start all services (MCP, PostgreSQL, Redis)
 
 # Kubernetes
 # See mozartpay/k8s/README.md for deployment instructions
@@ -190,7 +190,8 @@ make demo-full
 
 | Command | Description |
 |---------|-------------|
-| `mozartpay wallet connect` | Connect wwWallet, Stellar, or external EOA |
+| `mozartpay wallet connect` | Connect Stellar or external EOA |
+| `mozartpay wallet passkey` | Passkey protection (register/unlock/lock/status/disable) |
 | `mozartpay wallet fund` | Fund testnet account via faucet |
 | `mozartpay wallet balance` | Query account balance |
 
@@ -320,7 +321,7 @@ mozartpay contract create-agreement --dispute-window 86400
 mozartpay contract attest-identity --did did:web:example.com --method web --vc-type national_id
 
 # Connect wallet
-mozartpay contract connect-wallet --type wwwallet --passkey
+mozartpay contract connect-wallet --type stellar --passkey
 
 # Fund asset
 mozartpay contract fund-asset --asset USDC --amount 100 --locked 0
@@ -387,7 +388,7 @@ The Soroban smart contracts are written in Rust and located in `mozartpay/contra
 
 The main contract implements the 5-layer Orchestrated Agreement flow:
 1. **Identity** — DID attestation with Verifiable Credentials
-2. **Wallet** — WebAuthn/passkey wallet connection
+2. **Wallet** — Wallet connection (passkey-protected seeds supported)
 3. **Assets** — SAC/SEP-41 fungible/non-fungible asset funding
 4. **Integrations** — OA Score, StellarCarbon, x402, Tempo
 5. **Reporting** — On-chain audit trail, ISO 20022 compliance
@@ -396,21 +397,19 @@ The main contract implements the 5-layer Orchestrated Agreement flow:
 
 ### Docker
 
-Multi-service Dockerfile supports three images:
+Multi-service Dockerfile supports these images:
 - **CLI** — MozartPay CLI binary
 - **MCP** — MCP server with SSE transport (port 3000)
-- **WebAuthn** — WebAuthn/FIDO2 server (port 8000)
 
 ```bash
 docker compose up              # All services
 docker compose up mcp          # MCP server only
-docker compose up webauthn     # WebAuthn server only
 ```
 
 ### Kubernetes
 
 Kubernetes manifests in `mozartpay/k8s/` include:
-- Namespace, PostgreSQL, Redis, WebAuthn, MCP, Horizon, Networking, Monitoring, Ollama
+- Namespace, PostgreSQL, Redis, MCP, Horizon, Networking, Monitoring, Ollama
 
 See `mozartpay/k8s/README.md` for detailed deployment instructions.
 
